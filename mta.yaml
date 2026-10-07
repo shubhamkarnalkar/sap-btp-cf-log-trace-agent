@@ -1,0 +1,30 @@
+_schema-version: '3.1'
+ID: cf-log-trace-agent
+version: 1.0.0
+description: "CF Log & Trace Agent CAP application"
+parameters:
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npm install
+        - npx cds build --production
+
+modules:
+  # CAP Node.js Service Module
+  - name: cf-log-trace-agent-srv
+    type: nodejs
+    path: gen/srv
+    parameters:
+      buildpack: nodejs_buildpack
+      memory: 512M
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
+    build-parameters:
+      builder: custom
+      commands:
+        - npm install --production
+
