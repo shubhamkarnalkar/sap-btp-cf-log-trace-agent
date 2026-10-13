@@ -6,6 +6,7 @@ using {
 } from '@sap/cds/common';
 
 entity Incidents : cuid, managed {
+    applicationId       : String(100);
     targetSpace         : String(100);
     correlatedRequestId : String(100);
     status              : String(20) default 'OPEN';

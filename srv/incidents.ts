@@ -29,7 +29,7 @@ async function getCloudFoundryToken(): Promise<string | null> {
             const clientId = process.env.CF_CLIENT_ID || 'cf';
             const clientSecret = process.env.CF_CLIENT_SECRET || '';
             const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-            
+
             const params = new URLSearchParams({
                 grant_type: 'password',
                 username: process.env.CF_USERNAME,
@@ -61,18 +61,18 @@ async function getCloudFoundryToken(): Promise<string | null> {
         }
 
         // 3. Client Credentials Grant (from default.env or bound credentials)
-        const clientId = process.env.CF_CLIENT_ID 
-            || process.env.XSUAA_CLIENT_ID 
-            || (cds.env.requires as any)?.auth?.credentials?.clientid 
+        const clientId = process.env.CF_CLIENT_ID
+            || process.env.XSUAA_CLIENT_ID
+            || (cds.env.requires as any)?.auth?.credentials?.clientid
             || (cds.env.requires as any)?.xsuaa?.credentials?.clientid;
 
-        const clientSecret = process.env.CF_CLIENT_SECRET 
-            || process.env.XSUAA_CLIENT_SECRET 
-            || (cds.env.requires as any)?.auth?.credentials?.clientsecret 
+        const clientSecret = process.env.CF_CLIENT_SECRET
+            || process.env.XSUAA_CLIENT_SECRET
+            || (cds.env.requires as any)?.auth?.credentials?.clientsecret
             || (cds.env.requires as any)?.xsuaa?.credentials?.clientsecret;
 
         if (clientId && clientSecret) {
-            const tokenUrl = process.env.CF_TOKEN_URL 
+            const tokenUrl = process.env.CF_TOKEN_URL
                 || (process.env.XSUAA_URL ? `${process.env.XSUAA_URL}/oauth/token` : null);
 
             if (tokenUrl) {
@@ -113,7 +113,7 @@ async function getCloudFoundryToken(): Promise<string | null> {
 }
 
 export default cds.service.impl(async function (this: cds.Service) {
-    const { Incidents } = this.entities;
+    const { Incidents, ImpactedServices, TraceEvents, Messages } = this.entities;
 
     this.before('READ', 'Incidents', async (req: cds.Request) => {
         LOG.info('Triggering log & trace sync from Cloud Foundry before reading Incidents...');
@@ -138,8 +138,9 @@ export default cds.service.impl(async function (this: cds.Service) {
                 LOG.info(`Fetched ${apps.length} application records from CF /v3/apps.`);
 
                 for (const app of apps) {
-                    LOG.info(`Creating incident record for CF app: ${app.name} (${app.guid})`);
+                    LOG.info(`Creating/updating incident record for CF app: ${app.name} (${app.guid})`);
                     const incidentRecord = {
+                        applicationId: app.guid,
                         targetSpace: app.relationships?.space?.data?.guid || process.env.CF_SPACE || 'dev',
                         correlatedRequestId: app.guid,
                         status: app.state === 'STARTED' ? 'OPEN' : 'INVESTIGATING',
@@ -163,11 +164,46 @@ export default cds.service.impl(async function (this: cds.Service) {
                             }
                         ],
                         messages: [
-                            { text: `Automatically created from CF app status event for ${app.name} (${app.guid})` }
+                            {
+                                text: `Automatically created from CF app status event for ${app.name} (${app.guid})`
+                            }
                         ]
                     };
 
-                    await cds.tx(req).run(UPSERT.into(Incidents).entries(incidentRecord));
+                    const existing = await cds.tx(req).run(SELECT.one.from(Incidents).where({ correlatedRequestId: app.guid }));
+                    if (!existing) {
+                        await cds.tx(req).run(INSERT.into(Incidents).entries(incidentRecord));
+                    } else {
+                        await cds.tx(req).run(UPDATE(Incidents).set({
+                            applicationId: incidentRecord.applicationId,
+                            status: incidentRecord.status,
+                            errorCategory: incidentRecord.errorCategory,
+                            targetSpace: incidentRecord.targetSpace,
+                            rootCauseStatement: incidentRecord.rootCauseStatement,
+                            remediationAction: incidentRecord.remediationAction
+                        }).where({ ID: existing.ID }));
+
+                        const existingServices = await cds.tx(req).run(SELECT.from(ImpactedServices).where({ incident_ID: existing.ID }));
+                        if (existingServices.length === 0) {
+                            for (const svc of incidentRecord.impactedServices) {
+                                await cds.tx(req).run(INSERT.into(ImpactedServices).entries({ ...svc, incident_ID: existing.ID }));
+                            }
+                        }
+
+                        const existingTraces = await cds.tx(req).run(SELECT.from(TraceEvents).where({ incident_ID: existing.ID }));
+                        if (existingTraces.length === 0) {
+                            for (const tr of incidentRecord.traces) {
+                                await cds.tx(req).run(INSERT.into(TraceEvents).entries({ ...tr, incident_ID: existing.ID }));
+                            }
+                        }
+
+                        const existingMsgs = await cds.tx(req).run(SELECT.from(Messages).where({ incident_ID: existing.ID }));
+                        if (existingMsgs.length === 0) {
+                            for (const msg of incidentRecord.messages) {
+                                await cds.tx(req).run(INSERT.into(Messages).entries({ ...msg, incident_ID: existing.ID }));
+                            }
+                        }
+                    }
                 }
             } catch (appsErr: any) {
                 LOG.error('Failed to fetch CF apps:', appsErr.response?.data || appsErr.message);
@@ -184,6 +220,7 @@ export default cds.service.impl(async function (this: cds.Service) {
                     const actorName = event.actor?.name || 'CF System';
                     const targetName = event.target?.name || event.target?.type || 'CF Resource';
                     const eventType = event.type || 'audit.event';
+                    const targetAppId = event.target?.guid || (event.target?.type === 'app' ? event.target?.name : null) || null;
 
                     let logLevel = 'INFO';
                     let status = 'OPEN';
@@ -195,6 +232,7 @@ export default cds.service.impl(async function (this: cds.Service) {
                     }
 
                     const incidentRecord = {
+                        applicationId: targetAppId,
                         targetSpace: spaceName,
                         correlatedRequestId: event.guid,
                         status: status,
@@ -212,7 +250,7 @@ export default cds.service.impl(async function (this: cds.Service) {
                                 timestamp: event.created_at || new Date().toISOString(),
                                 component: (event.target?.type || 'CF').toUpperCase(),
                                 serviceName: targetName,
-                                statusCode: eventType.includes('delete') ? 404 : 200,
+                                statusCode: eventType.includes('delete') ? 404 : (eventType.includes('crash') ? 503 : 200),
                                 logLevel: logLevel,
                                 message: `[${eventType}] ${targetName} (${event.target?.type || 'resource'}) action by ${actorName}`
                             }
@@ -224,7 +262,40 @@ export default cds.service.impl(async function (this: cds.Service) {
                         ]
                     };
 
-                    await cds.tx(req).run(UPSERT.into(Incidents).entries(incidentRecord));
+                    const existing = await cds.tx(req).run(SELECT.one.from(Incidents).where({ correlatedRequestId: event.guid }));
+                    if (!existing) {
+                        await cds.tx(req).run(INSERT.into(Incidents).entries(incidentRecord));
+                    } else {
+                        await cds.tx(req).run(UPDATE(Incidents).set({
+                            applicationId: incidentRecord.applicationId,
+                            status: incidentRecord.status,
+                            errorCategory: incidentRecord.errorCategory,
+                            targetSpace: incidentRecord.targetSpace,
+                            rootCauseStatement: incidentRecord.rootCauseStatement,
+                            remediationAction: incidentRecord.remediationAction
+                        }).where({ ID: existing.ID }));
+
+                        const existingServices = await cds.tx(req).run(SELECT.from(ImpactedServices).where({ incident_ID: existing.ID }));
+                        if (existingServices.length === 0) {
+                            for (const svc of incidentRecord.impactedServices) {
+                                await cds.tx(req).run(INSERT.into(ImpactedServices).entries({ ...svc, incident_ID: existing.ID }));
+                            }
+                        }
+
+                        const existingTraces = await cds.tx(req).run(SELECT.from(TraceEvents).where({ incident_ID: existing.ID }));
+                        if (existingTraces.length === 0) {
+                            for (const tr of incidentRecord.traces) {
+                                await cds.tx(req).run(INSERT.into(TraceEvents).entries({ ...tr, incident_ID: existing.ID }));
+                            }
+                        }
+
+                        const existingMsgs = await cds.tx(req).run(SELECT.from(Messages).where({ incident_ID: existing.ID }));
+                        if (existingMsgs.length === 0) {
+                            for (const msg of incidentRecord.messages) {
+                                await cds.tx(req).run(INSERT.into(Messages).entries({ ...msg, incident_ID: existing.ID }));
+                            }
+                        }
+                    }
                 }
             } catch (auditErr: any) {
                 LOG.error('Failed to fetch CF audit events:', auditErr.response?.data || auditErr.message);

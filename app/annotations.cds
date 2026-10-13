@@ -17,12 +17,18 @@ annotate service.Incidents with @(
         }
     },
     UI.SelectionFields : [
+        applicationId,
         status,
         errorCategory,
         targetSpace,
         createdAt
     ],
     UI.LineItem : [
+        {
+            $Type : 'UI.DataField',
+            Value : applicationId,
+            Label : 'Application ID',
+        },
         {
             $Type : 'UI.DataField',
             Value : correlatedRequestId,
@@ -83,6 +89,11 @@ annotate service.Incidents with @(
     ],
     UI.FieldGroup #GeneralInformation : {
         Data : [
+            {
+                $Type : 'UI.DataField',
+                Value : applicationId,
+                Label : 'Application ID',
+            },
             {
                 $Type : 'UI.DataField',
                 Value : correlatedRequestId,

@@ -254,7 +254,7 @@ Add the following to your `claude_desktop_config.json` or custom agent MCP confi
 
 ## 🖥️ SAP Fiori Elements User Interface
 
-Declarative UI annotations are provided in [`app/annotations.cds`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/app/annotations.cds):
+Declarative UI annotations are provided in [`app/annotations.cds`]:
 
 * **Semantic Criticality**: Color-codes incident records automatically:
   * `OPEN` / Positive (3 - Green)
