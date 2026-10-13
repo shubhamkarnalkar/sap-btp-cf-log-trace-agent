@@ -139,14 +139,32 @@ export default cds.service.impl(async function (this: cds.Service) {
 
                 for (const app of apps) {
                     LOG.info(`Creating/updating incident record for CF app: ${app.name} (${app.guid})`);
+
+                    let appCategory = 'CF_APP_STATUS';
+                    let appStatus = app.state === 'STARTED' ? 'OPEN' : 'INVESTIGATING';
+                    let appRootCause = `CF App '${app.name}' lifecycle state is ${app.state} (${app.instances || 1} instance(s) configured).`;
+                    let appRemediation = `Application is in ${app.state} state. Monitor runtime health and logs.`;
+
+                    if (app.state === 'CRASHED' || app.state === 'DOWN') {
+                        appCategory = 'CF_APP_CRASH';
+                        appStatus = 'INVESTIGATING';
+                        appRootCause = `Application '${app.name}' has crashed or failed health checks. State: ${app.state}.`;
+                        appRemediation = `1. Run 'cf logs ${app.name} --recent' to capture crash stack trace.\n2. Run 'cf events ${app.name}' to inspect exit code (Exit 137=OOM, Exit 1=Process exception).\n3. If OOM, scale memory: 'cf scale ${app.name} -m 1G'.\n4. Restart app: 'cf restart ${app.name}'.`;
+                    } else if (app.state === 'STOPPED') {
+                        appCategory = 'CF_APP_STOPPED';
+                        appStatus = 'INVESTIGATING';
+                        appRootCause = `Application '${app.name}' is currently STOPPED.`;
+                        appRemediation = `To restore service, run: 'cf start ${app.name}'. Verify route mapping via 'cf routes'.`;
+                    }
+
                     const incidentRecord = {
                         applicationId: app.guid,
                         targetSpace: app.relationships?.space?.data?.guid || process.env.CF_SPACE || 'dev',
                         correlatedRequestId: app.guid,
-                        status: app.state === 'STARTED' ? 'OPEN' : 'INVESTIGATING',
-                        errorCategory: 'CF_APP_STATUS',
-                        rootCauseStatement: `CF App State: ${app.state}, Total Instances: ${app.instances || 1}`,
-                        remediationAction: `Inspect logs and traces for app ${app.name}`,
+                        status: appStatus,
+                        errorCategory: appCategory,
+                        rootCauseStatement: appRootCause,
+                        remediationAction: appRemediation,
                         impactedServices: [
                             {
                                 serviceName: app.name,
@@ -222,23 +240,49 @@ export default cds.service.impl(async function (this: cds.Service) {
                     const eventType = event.type || 'audit.event';
                     const targetAppId = event.target?.guid || (event.target?.type === 'app' ? event.target?.name : null) || null;
 
-                    let logLevel = 'INFO';
-                    let status = 'OPEN';
-                    if (eventType.includes('delete') || eventType.includes('crash') || eventType.includes('fail')) {
-                        logLevel = 'ERROR';
-                        status = 'INVESTIGATING';
-                    } else if (eventType.includes('update') || eventType.includes('start')) {
-                        logLevel = 'WARN';
+                    let eventCategory = 'CF_AUDIT_LOG';
+                    let eventStatus = 'OPEN';
+                    let eventLogLevel = 'INFO';
+                    let eventRootCause = `CF Audit Event [${eventType}] on ${targetName} by ${actorName}.`;
+                    let eventRemediation = `Review audit event record for ${targetName}.`;
+
+                    if (eventType.includes('crash') || eventType.includes('fail')) {
+                        eventCategory = 'CF_PROCESS_CRASH';
+                        eventStatus = 'INVESTIGATING';
+                        eventLogLevel = 'ERROR';
+                        eventRootCause = `Process crash or failure event [${eventType}] on ${targetName} triggered by ${actorName}.`;
+                        eventRemediation = `1. Run 'cf logs ${targetName} --recent' to capture standard error.\n2. Review exit code in 'cf events ${targetName}'.\n3. Check memory limits or unhandled exceptions, then run 'cf restart ${targetName}'.`;
+                    } else if (eventType.includes('delete')) {
+                        eventCategory = 'CF_RESOURCE_DELETED';
+                        eventStatus = 'INVESTIGATING';
+                        eventLogLevel = 'ERROR';
+                        eventRootCause = `Resource '${targetName}' (${event.target?.type || 'resource'}) was deleted by ${actorName}.`;
+                        eventRemediation = `Verify if deletion was intentional. If unexpected, redeploy via 'cf push' or recreate bound service.`;
+                    } else if (eventType === 'audit.app.map-route' || eventType === 'audit.app.unmap-route') {
+                        eventCategory = 'CF_ROUTE_MUTATION';
+                        eventLogLevel = 'WARN';
+                        eventRootCause = `Route configuration modified for '${targetName}' by ${actorName} [${eventType}].`;
+                        eventRemediation = `Verify DNS resolution and URL hostname mapping using 'cf routes' and test endpoint reachability.`;
+                    } else if (eventType.includes('restage') || eventType.includes('droplet')) {
+                        eventCategory = 'CF_APP_RESTAGE';
+                        eventLogLevel = 'WARN';
+                        eventRootCause = `Application restage or droplet build triggered for '${targetName}' by ${actorName}.`;
+                        eventRemediation = `Inspect staging build logs with 'cf logs ${targetName} --recent' and confirm droplets start cleanly.`;
+                    } else if (eventType.includes('update') || eventType.includes('start') || eventType.includes('stop')) {
+                        eventCategory = 'CF_LIFECYCLE_MUTATION';
+                        eventLogLevel = 'WARN';
+                        eventRootCause = `Lifecycle modification event [${eventType}] executed on ${targetName} by ${actorName}.`;
+                        eventRemediation = `Check current app runtime state: 'cf app ${targetName}' and inspect recent events.`;
                     }
 
                     const incidentRecord = {
                         applicationId: targetAppId,
                         targetSpace: spaceName,
                         correlatedRequestId: event.guid,
-                        status: status,
-                        errorCategory: 'CF_AUDIT_LOG',
-                        rootCauseStatement: `CF Audit Log [${eventType}] on ${targetName} by ${actorName}`,
-                        remediationAction: `Review audit event details for ${targetName}`,
+                        status: eventStatus,
+                        errorCategory: eventCategory,
+                        rootCauseStatement: eventRootCause,
+                        remediationAction: eventRemediation,
                         impactedServices: [
                             {
                                 serviceName: targetName,
@@ -251,7 +295,7 @@ export default cds.service.impl(async function (this: cds.Service) {
                                 component: (event.target?.type || 'CF').toUpperCase(),
                                 serviceName: targetName,
                                 statusCode: eventType.includes('delete') ? 404 : (eventType.includes('crash') ? 503 : 200),
-                                logLevel: logLevel,
+                                logLevel: eventLogLevel,
                                 message: `[${eventType}] ${targetName} (${event.target?.type || 'resource'}) action by ${actorName}`
                             }
                         ],
