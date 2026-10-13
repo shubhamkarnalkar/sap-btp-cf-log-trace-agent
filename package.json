@@ -6,6 +6,9 @@
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
+    "@cap-js/mcp": "^1.5.0",
+    "@cap-js/mcp-server": "^0.0.6",
+    "@gavdi/cap-mcp": "^1.8.0",
     "@sap-cloud-sdk/connectivity": "^4.9.1",
     "@sap-cloud-sdk/http-client": "^4.9.1",
     "@sap-cloud-sdk/resilience": "^4.9.1",
@@ -28,6 +31,18 @@
     "start": "cds-serve"
   },
   "cds": {
-    "requires": {}
+    "requires": {},
+    "mcp": {
+      "name": "cf-log-trace-agent-mcp",
+      "wrap_entities_to_actions": true,
+      "wrap_entity_modes": [
+        "query",
+        "get",
+        "create",
+        "update",
+        "delete"
+      ],
+      "instructions": "MCP Server for Cloud Foundry Log & Trace Incident Agent. Enables querying, creating, updating, and deleting incidents, trace events, impacted services, and messages."
+    }
   }
 }
