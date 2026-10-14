@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAP BTP CF Log & Trace Agent — Service & MCP Cockpit</title>
+  <meta name="description" content="SAP CAP Microservice, Model Context Protocol (MCP) Server, and Autonomous SRE Incident Cockpit for Cloud Foundry.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0e17;
+      --bg-secondary: #111827;
+      --bg-card: rgba(17, 24, 39, 0.75);
+      --bg-card-hover: rgba(30, 41, 59, 0.85);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(99, 102, 241, 0.35);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent-sap: #0070f2;
+      --accent-cyan: #06b6d4;
+      --accent-purple: #8b5cf6;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --gradient-brand: linear-gradient(135deg, #0070f2 0%, #8b5cf6 50%, #06b6d4 100%);
+      --gradient-card: linear-gradient(145deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+      --shadow-elevation: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+      --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --transition-smooth: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Ambient Glow Orbs */
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .ambient-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(140px);
+      opacity: 0.15;
+    }
+    .orb-1 { top: -10%; left: 10%; width: 600px; height: 600px; background: var(--accent-sap); }
+    .orb-2 { bottom: 10%; right: 5%; width: 700px; height: 700px; background: var(--accent-purple); }
+    .orb-3 { top: 40%; left: 45%; width: 450px; height: 450px; background: var(--accent-cyan); opacity: 0.1; }
+
+    /* Top Navigation Bar */
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10, 14, 23, 0.75);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.85rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+    .brand-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0070f2, #8b5cf6);
+      color: white;
+      font-weight: 800;
+      font-size: 0.9rem;
+      box-shadow: 0 0 18px rgba(0, 112, 242, 0.45);
+    }
+    .brand-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+    .brand-sub {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      border-left: 1px solid var(--border-color);
+      padding-left: 0.75rem;
+      margin-left: 0.75rem;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      font-family: inherit;
+      transition: var(--transition-smooth);
+    }
+    .btn-ghost {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+    .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0070f2, #6366f1);
+      color: #fff;
+      border: none;
+      box-shadow: 0 4px 15px rgba(0, 112, 242, 0.35);
+    }
+    .btn-primary:hover {
+      box-shadow: 0 6px 20px rgba(0, 112, 242, 0.55);
+      transform: translateY(-1px);
+    }
+
+    /* Container Layout */
+    .container {
+      position: relative;
+      z-index: 10;
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 2.5rem 2rem 5rem;
+    }
+
+    /* Hero Section */
+    .hero {
+      margin-bottom: 2.5rem;
+    }
+    .hero-tag-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(0, 112, 242, 0.12);
+      border: 1px solid rgba(0, 112, 242, 0.3);
+      padding: 0.3rem 0.9rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #93c5fd;
+      margin-bottom: 1rem;
+    }
+    .hero-heading {
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-sub {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 800px;
+      line-height: 1.6;
+    }
+
+    /* Section Cards Grid */
+    .section-title-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.25rem;
+      margin-top: 2rem;
+    }
+    .section-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .section-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .badge-mcp {
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.35);
+      color: #c084fc;
+    }
+    .badge-odata {
+      background: rgba(0, 112, 242, 0.15);
+      border: 1px solid rgba(0, 112, 242, 0.35);
+      color: #60a5fa;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.25rem;
+    }
+
+    /* Glass Cards */
+    .glass-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.5rem;
+      transition: var(--transition-smooth);
+      position: relative;
+      overflow: hidden;
+    }
+    .glass-card:hover {
+      background: var(--bg-card-hover);
+      border-color: rgba(255, 255, 255, 0.16);
+      transform: translateY(-2px);
+      box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.6);
+    }
+    .glass-card.highlight-purple {
+      border-color: rgba(139, 92, 246, 0.35);
+      background: linear-gradient(145deg, rgba(139, 92, 246, 0.08) 0%, rgba(17, 24, 39, 0.8) 100%);
+    }
+
+    /* Pulse Dot Indicator */
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent-emerald);
+      box-shadow: 0 0 10px var(--accent-emerald);
+      display: inline-block;
+      animation: pulseAnimation 2s infinite;
+    }
+    @keyframes pulseAnimation {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* Endpoint Pill Component */
+    .endpoint-box {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 0.85rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+    }
+    .endpoint-url {
+      color: #38bdf8;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .btn-copy {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      border-radius: 6px;
+      padding: 0.3rem 0.65rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+    }
+    .btn-copy:hover {
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    /* Prompt Box */
+    .prompt-box {
+      background: rgba(139, 92, 246, 0.06);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-top: 1rem;
+    }
+    .prompt-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #c084fc;
+    }
+    .prompt-tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.85rem;
+      margin-bottom: 0.85rem;
+      flex-wrap: wrap;
+    }
+    .prompt-tab {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: 0.45rem 0.85rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .prompt-tab:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+    .prompt-tab.active {
+      background: var(--accent-purple);
+      border-color: var(--accent-purple);
+      color: #fff;
+      box-shadow: 0 0 14px rgba(168, 85, 247, 0.45);
+    }
+    .prompt-content {
+      font-family: var(--font-mono);
+      font-size: 0.86rem;
+      line-height: 1.6;
+      color: #e2e8f0;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 1rem;
+      border-radius: 8px;
+      border-left: 3px solid var(--accent-cyan);
+      user-select: all;
+      white-space: pre-wrap;
+    }
+
+    /* Tools Pill Grid */
+    .tools-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+    .tool-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.78rem;
+      font-family: var(--font-mono);
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .tool-chip span.dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-purple);
+    }
+
+    /* Entity Table Rows */
+    .entity-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      margin-bottom: 0.6rem;
+      transition: var(--transition-smooth);
+    }
+    .entity-item:hover {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+    .entity-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .entity-icon {
+      font-size: 1.15rem;
+    }
+    .entity-name {
+      font-weight: 600;
+      color: #fff;
+      font-size: 0.95rem;
+    }
+    .entity-desc {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+    }
+    .entity-links {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .entity-link {
+      font-size: 0.78rem;
+      color: var(--accent-cyan);
+      text-decoration: none;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+      transition: var(--transition-smooth);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .entity-link:hover {
+      background: rgba(6, 182, 212, 0.2);
+      color: #fff;
+    }
+    .fiori-btn {
+      background: linear-gradient(135deg, rgba(0, 112, 242, 0.2), rgba(99, 102, 241, 0.25)) !important;
+      border-color: rgba(0, 112, 242, 0.45) !important;
+      color: #93c5fd !important;
+      font-weight: 700 !important;
+      box-shadow: 0 0 10px rgba(0, 112, 242, 0.25);
+    }
+    .fiori-btn:hover {
+      background: linear-gradient(135deg, rgba(0, 112, 242, 0.4), rgba(99, 102, 241, 0.5)) !important;
+      border-color: rgba(99, 102, 241, 0.7) !important;
+      color: #fff !important;
+      box-shadow: 0 0 16px rgba(0, 112, 242, 0.45);
+      transform: translateY(-1px);
+    }
+
+    /* Banner Deck Callout */
+    .presentation-banner {
+      background: linear-gradient(135deg, rgba(0, 112, 242, 0.15) 0%, rgba(139, 92, 246, 0.2) 100%);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      border-radius: 18px;
+      padding: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 2.5rem;
+    }
+    .banner-content {
+      max-width: 650px;
+    }
+    .banner-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      margin-bottom: 0.4rem;
+      color: #fff;
+    }
+    .banner-desc {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: 4rem;
+      border-top: 1px solid var(--border-color);
+      padding-top: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      color: var(--text-dim);
+    }
+
+    @media (max-width: 900px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+      .presentation-banner { flex-direction: column; gap: 1.5rem; text-align: center; }
+      .hero-heading { font-size: 2rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Background Orbs -->
+  <div class="ambient-bg">
+    <div class="ambient-orb orb-1"></div>
+    <div class="ambient-orb orb-2"></div>
+    <div class="ambient-orb orb-3"></div>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="top-nav">
+    <div class="brand-wrap">
+      <div class="brand-badge">SAP</div>
+      <div>
+        <div class="brand-title">cf-log-trace-agent</div>
+      </div>
+      <div class="brand-sub">Cloud Foundry Log & Trace Incident Agent</div>
+    </div>
+    <div class="nav-actions">
+      <a href="/$fiori-preview/IncidentService/Incidents#preview-app" class="btn btn-ghost fiori-btn" target="_blank" title="Launch SAP Fiori Elements Incidents Cockpit">
+        <span>🎨</span> Fiori Incidents
+      </a>
+      <a href="/presentation/index.html" class="btn btn-ghost" title="Open 14-slide executive presentation">
+        <span>📑</span> Slide Deck (14 Slides)
+      </a>
+      <a href="/odata/v4/incident/$metadata" class="btn btn-ghost" target="_blank" title="View OData V4 Metadata XML">
+        <span>🌐</span> $metadata
+      </a>
+      <a href="/mcp/health" class="btn btn-primary" target="_blank" title="Check MCP server health endpoint">
+        <span class="pulse-dot"></span> MCP Server Status
+      </a>
+    </div>
+  </nav>
+
+  <div class="container">
+
+    <!-- Hero Header -->
+    <header class="hero">
+      <div class="hero-tag-pill">
+        <span>🚀</span> SAP CAP 9 + Model Context Protocol + Fiori Elements
+      </div>
+      <h1 class="hero-heading">Cloud Foundry Incident Agent Cockpit</h1>
+      <p class="hero-sub">
+        Real-time telemetry ingestion from Cloud Foundry controller APIs (<code>/v3/apps</code>, <code>/v3/audit_events</code>) mapped to Core Data Services and exposed simultaneously as <strong>OData V4 services</strong> and standard <strong>Model Context Protocol (MCP) AI tools</strong>.
+      </p>
+    </header>
+
+    <!-- SECTION 1: MCP CONTROL HUB -->
+    <div class="section-title-wrap">
+      <h2 class="section-title">
+        <span>🤖</span> Model Context Protocol (MCP) Server
+      </h2>
+      <span class="section-badge badge-mcp">AI Agent Gateway Active</span>
+    </div>
+
+    <div class="grid-2">
+      <!-- Endpoint Card -->
+      <div class="glass-card highlight-purple">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff;">Primary MCP Endpoint</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.25rem;">
+              Direct JSON-RPC 2.0 endpoint for Claude, Gemini, and Antigravity agents.
+            </p>
+          </div>
+          <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-emerald); display: flex; align-items: center; gap: 0.4rem;">
+            <span class="pulse-dot"></span> <span id="mcpLiveStatus">ONLINE (UP)</span>
+          </span>
+        </div>
+
+        <div class="endpoint-box">
+          <span class="endpoint-url" id="mcpUrlText">http://localhost:4004/mcp</span>
+          <button class="btn-copy" onclick="copyText('http://localhost:4004/mcp', this)">Copy URL</button>
+        </div>
+
+        <div class="endpoint-box" style="margin-top: 0.5rem;">
+          <span class="endpoint-url" style="color: #a78bfa;">http://localhost:4004/mcp/health</span>
+          <button class="btn-copy" onclick="window.open('/mcp/health', '_blank')">Test Ping ↗</button>
+        </div>
+
+        <div style="margin-top: 1rem;">
+          <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.4rem;">
+            Exposed MCP Tools:
+          </div>
+          <div class="tools-grid">
+            <div class="tool-chip"><span class="dot"></span>IncidentService_Incidents_query</div>
+            <div class="tool-chip"><span class="dot"></span>IncidentService_TraceEvents_query</div>
+            <div class="tool-chip"><span class="dot"></span>IncidentService_ImpactedServices_query</div>
+            <div class="tool-chip"><span class="dot"></span>IncidentService_Messages_create</div>
+            <div class="tool-chip"><span class="dot"></span>IncidentService_Incidents_update</div>
+            <div class="tool-chip"><span class="dot"></span>executeResolutionTask</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Human-in-the-Loop Safe Prompt Card -->
+      <div class="glass-card">
+        <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff;">Human-in-the-Loop AI Prompts</h3>
+        <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.25rem;">
+          Select an SRE operator prompt instruction for autonomous agent execution over MCP:
+        </p>
+
+        <!-- Prompt Tab Switcher -->
+        <div class="prompt-tabs">
+          <button class="prompt-tab active" onclick="switchPrompt(0, this)">1. Standard Autonomous</button>
+          <button class="prompt-tab" onclick="switchPrompt(1, this)">2. Explicit Protocol Spec</button>
+          <button class="prompt-tab" onclick="switchPrompt(2, this)">3. Targeted Incident</button>
+        </div>
+
+        <div class="prompt-box">
+          <div class="prompt-header">
+            <span id="promptLabel">1. STANDARD AUTONOMOUS (NEXT OPEN INCIDENT)</span>
+            <button class="btn-copy" onclick="copyPrompt(this)">Copy Prompt</button>
+          </div>
+          <div class="prompt-content" id="agentPromptText">Diagnose the next open incident strictly using the MCP server. Analyze its telemetry traces, propose a prescriptive resolution playbook as a comment, and verify the status transitions to "Resolution added by Agent" for operator review.</div>
+        </div>
+
+        <div style="margin-top: 1rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; color: var(--text-dim);">
+          <span>IDE Config: <code>.agents/mcp_config.json</code></span>
+          <span style="color: var(--accent-emerald);">✓ Safe Execution Policy</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 2: ODATA V4 SERVICE ENDPOINTS -->
+    <div class="section-title-wrap">
+      <h2 class="section-title">
+        <span>⚡</span> OData V4 Service Endpoints
+      </h2>
+      <span class="section-badge badge-odata">Protocol: OData v4</span>
+    </div>
+
+    <div class="glass-card">
+      <div style="margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <span style="font-family: var(--font-mono); font-weight: 700; color: #fff; font-size: 1.05rem;">/odata/v4/incident</span>
+          <span style="color: var(--text-dim); margin-left: 0.75rem; font-size: 0.82rem;">Core Incident Intelligence Service</span>
+        </div>
+        <a href="/odata/v4/incident/$metadata" target="_blank" class="entity-link">View $metadata ↗</a>
+      </div>
+
+      <!-- Entity 1: Incidents -->
+      <div class="entity-item">
+        <div class="entity-left">
+          <div class="entity-icon">🚨</div>
+          <div>
+            <div class="entity-name">Incidents</div>
+            <div class="entity-desc">Cloud Foundry crash, route mutation, restage, and lifecycle incidents</div>
+          </div>
+        </div>
+        <div class="entity-links">
+          <a href="/$fiori-preview/IncidentService/Incidents#preview-app" target="_blank" class="entity-link fiori-btn" title="Open Incidents in SAP Fiori Elements List Report">
+            <span>🎨</span> Fiori Preview
+          </a>
+          <a href="/odata/v4/incident/Incidents" target="_blank" class="entity-link">OData Feed</a>
+          <a href="/odata/v4/incident/Incidents?$top=10&$expand=impactedServices,traces,messages" target="_blank" class="entity-link">Deep Expand</a>
+        </div>
+      </div>
+
+      <!-- Entity 2: ImpactedServices -->
+      <div class="entity-item">
+        <div class="entity-left">
+          <div class="entity-icon">📦</div>
+          <div>
+            <div class="entity-name">ImpactedServices</div>
+            <div class="entity-desc">Microservices, application instances, and bindings impacted by failures</div>
+          </div>
+        </div>
+        <div class="entity-links">
+          <a href="/$fiori-preview/IncidentService/ImpactedServices#preview-app" target="_blank" class="entity-link fiori-btn" title="Open ImpactedServices in SAP Fiori Elements">
+            <span>🎨</span> Fiori Preview
+          </a>
+          <a href="/odata/v4/incident/ImpactedServices" target="_blank" class="entity-link">OData Feed</a>
+        </div>
+      </div>
+
+      <!-- Entity 3: TraceEvents -->
+      <div class="entity-item">
+        <div class="entity-left">
+          <div class="entity-icon">📊</div>
+          <div>
+            <div class="entity-name">TraceEvents</div>
+            <div class="entity-desc">Underlying Gorouter traces, Diego Cell cgroup termination logs, and status codes</div>
+          </div>
+        </div>
+        <div class="entity-links">
+          <a href="/$fiori-preview/IncidentService/TraceEvents#preview-app" target="_blank" class="entity-link fiori-btn" title="Open TraceEvents in SAP Fiori Elements">
+            <span>🎨</span> Fiori Preview
+          </a>
+          <a href="/odata/v4/incident/TraceEvents" target="_blank" class="entity-link">OData Feed</a>
+        </div>
+      </div>
+
+      <!-- Entity 4: Messages -->
+      <div class="entity-item">
+        <div class="entity-left">
+          <div class="entity-icon">💬</div>
+          <div>
+            <div class="entity-name">Messages (Discussions)</div>
+            <div class="entity-desc">AI-generated resolution playbooks, audit trail logs, and operator collaboration</div>
+          </div>
+        </div>
+        <div class="entity-links">
+          <a href="/$fiori-preview/IncidentService/Messages#preview-app" target="_blank" class="entity-link fiori-btn" title="Open Messages in SAP Fiori Elements">
+            <span>🎨</span> Fiori Preview
+          </a>
+          <a href="/odata/v4/incident/Messages" target="_blank" class="entity-link">OData Feed</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 3: EXECUTIVE PRESENTATION DECK BANNER -->
+    <div class="presentation-banner">
+      <div class="banner-content">
+        <div style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; font-weight: 700; color: #a5b4fc; text-transform: uppercase; margin-bottom: 0.5rem;">
+          <span>🎯</span> Interactive Slide Deck Included
+        </div>
+        <h3 class="banner-title">Executive Presentation & Architecture Deck</h3>
+        <p class="banner-desc">
+          Explore the 14 interactive presentation slides detailing Cloud Foundry 4-Tier authentication, autonomous MCP agent loops, Fiori Elements UX, and a live simulator.
+        </p>
+      </div>
+      <a href="/presentation/index.html" class="btn btn-primary" style="padding: 0.85rem 1.75rem; font-size: 1rem; border-radius: 12px; white-space: nowrap;">
+        Launch Slide Deck →
+      </a>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div>
+        <strong>cf-log-trace-agent</strong> v1.0.0 — SAP Business Technology Platform
+      </div>
+      <div>
+        Model Context Protocol Server active on port <code>4004</code>
+      </div>
+    </footer>
+
+  </div>
+
+  <script>
+    // Copy URL Helper
+    function copyText(text, btn) {
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.style.background = 'var(--accent-emerald)';
+        btn.style.color = '#fff';
+        setTimeout(() => {
+          btn.textContent = orig;
+          btn.style.background = '';
+          btn.style.color = '';
+        }, 2000);
+      });
+    }
+
+    // Prompts Catalog
+    const prompts = [
+      {
+        label: '1. STANDARD AUTONOMOUS (NEXT OPEN INCIDENT)',
+        text: 'Diagnose the next open incident strictly using the MCP server. Analyze its telemetry traces, propose a prescriptive resolution playbook as a comment, and verify the status transitions to "Resolution added by Agent" for operator review.'
+      },
+      {
+        label: '2. EXPLICIT SRE PRODUCTION PROMPT (FULL PROTOCOL SPECIFICATION)',
+        text: 'Perform an autonomous diagnosis for the next active Cloud Foundry incident following these strict requirements:\n1. Use ONLY the MCP server tools (IncidentService_Incidents_query, IncidentService_TraceEvents_query, IncidentService_ImpactedServices_query) to fetch telemetry.\n2. Formulate a prescriptive remediation playbook (exit codes, cf logs, cf events, scaling, and restart steps) using the cf-log-trace-agent skill catalog.\n3. Post the playbook as a discussion comment using the IncidentService_Messages_create MCP tool.\n4. Verify that the incident\'s status automatically transitions to "Resolution added by Agent" upon your message creation.'
+      },
+      {
+        label: '3. EXPLICIT SRE PRODUCTION PROMPT (TARGETED INCIDENT UUID)',
+        text: 'Perform an autonomous diagnosis for incident 099ea6eb-c7c0-4b50-8fb0-ca5412c0f538 following these strict requirements:\n1. Use ONLY the MCP server tools (IncidentService_Incidents_query with filter { field: \'ID\', op: \'eq\', value: \'099ea6eb-c7c0-4b50-8fb0-ca5412c0f538\' }, IncidentService_TraceEvents_query, IncidentService_ImpactedServices_query) to fetch telemetry.\n2. Formulate a prescriptive remediation playbook (exit codes, cf logs, cf events, scaling, and restart steps) using the cf-log-trace-agent skill catalog.\n3. Post the playbook as a discussion comment using the IncidentService_Messages_create MCP tool.\n4. Verify that the incident\'s status automatically transitions to "Resolution added by Agent" upon your message creation.'
+      }
+    ];
+
+    function switchPrompt(index, btn) {
+      document.querySelectorAll('.prompt-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const p = prompts[index];
+      document.getElementById('promptLabel').textContent = p.label;
+      document.getElementById('agentPromptText').innerText = p.text;
+    }
+
+    // Copy Prompt Helper
+    function copyPrompt(btn) {
+      const text = document.getElementById('agentPromptText').innerText;
+      copyText(text, btn);
+    }
+
+    // Live Health Ping
+    async function checkMcpHealth() {
+      try {
+        const res = await fetch('/mcp/health');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'UP') {
+            document.getElementById('mcpLiveStatus').textContent = 'ONLINE (UP)';
+          }
+        }
+      } catch (e) {
+        document.getElementById('mcpLiveStatus').textContent = 'CHECKING...';
+      }
+    }
+    checkMcpHealth();
+  </script>
+</body>
+</html>

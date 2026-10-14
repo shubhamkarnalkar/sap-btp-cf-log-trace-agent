@@ -9,7 +9,7 @@ entity Incidents : cuid, managed {
     applicationId       : String(100);
     targetSpace         : String(100);
     correlatedRequestId : String(100);
-    status              : String(20) default 'OPEN';
+    status              : String(50) default 'OPEN';
     errorCategory       : String(50);
     rootCauseStatement  : LargeString;
     remediationAction   : LargeString;

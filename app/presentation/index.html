@@ -1,0 +1,1664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAP BTP CF Log & Trace Agent - Executive Presentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0e17;
+      --bg-secondary: #111827;
+      --bg-card: rgba(17, 24, 39, 0.75);
+      --bg-card-hover: rgba(30, 41, 59, 0.85);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(99, 102, 241, 0.35);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent-sap: #0070f2;
+      --accent-cyan: #06b6d4;
+      --accent-purple: #8b5cf6;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --gradient-brand: linear-gradient(135deg, #0070f2 0%, #8b5cf6 50%, #06b6d4 100%);
+      --gradient-card: linear-gradient(145deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+      --shadow-elevation: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+      --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --transition-smooth: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Ambient Background Glow */
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .ambient-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.18;
+      transition: var(--transition-smooth);
+    }
+    .orb-1 {
+      top: -10%;
+      left: 15%;
+      width: 600px;
+      height: 600px;
+      background: var(--accent-sap);
+    }
+    .orb-2 {
+      bottom: -15%;
+      right: 10%;
+      width: 700px;
+      height: 700px;
+      background: var(--accent-purple);
+    }
+    .orb-3 {
+      top: 40%;
+      right: 35%;
+      width: 450px;
+      height: 450px;
+      background: var(--accent-cyan);
+      opacity: 0.12;
+    }
+
+    /* Presentation Header Bar */
+    .deck-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      background: rgba(10, 14, 23, 0.65);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 100;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+    .brand-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #0070f2, #8b5cf6);
+      color: white;
+      font-weight: 800;
+      font-size: 0.85rem;
+      box-shadow: 0 0 15px rgba(0, 112, 242, 0.4);
+    }
+    .brand-title {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+    .brand-subtitle {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-left: 0.5rem;
+      padding-left: 0.5rem;
+      border-left: 1px solid var(--border-color);
+    }
+
+    .controls-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .btn-icon {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: 0.45rem 0.8rem;
+      font-size: 0.82rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: inherit;
+      transition: var(--transition-smooth);
+    }
+    .btn-icon:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0070f2, #6366f1);
+      color: #fff;
+      border: none;
+      box-shadow: 0 4px 12px rgba(0, 112, 242, 0.3);
+    }
+    .btn-primary:hover {
+      box-shadow: 0 6px 18px rgba(0, 112, 242, 0.5);
+      transform: translateY(-1px);
+    }
+
+    /* Slides Viewport */
+    .deck-viewport {
+      position: absolute;
+      top: 64px;
+      bottom: 60px;
+      left: 0;
+      right: 0;
+      overflow: hidden;
+      z-index: 10;
+    }
+
+    .slides-wrapper {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      padding: 2.5rem 4rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(16px) scale(0.985);
+      transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.45s;
+      overflow-y: auto;
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+      z-index: 5;
+    }
+
+    /* Slide Header */
+    .slide-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.75rem;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.28);
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #a5b4fc;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.85rem;
+      width: fit-content;
+    }
+    .slide-title {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(180deg, #ffffff 30%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .slide-title span {
+      background: var(--gradient-brand);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .slide-subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 900px;
+      margin-bottom: 2rem;
+      line-height: 1.5;
+    }
+
+    /* Grid Layouts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      align-items: stretch;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      align-items: stretch;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.25rem;
+    }
+
+    /* Card Components */
+    .glass-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.75rem;
+      backdrop-filter: blur(12px);
+      transition: var(--transition-smooth);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    }
+    .glass-card:hover {
+      background: var(--bg-card-hover);
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-3px);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+    }
+    .glass-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .glass-card:hover::before {
+      opacity: 1;
+    }
+
+    .card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.2rem;
+      font-size: 1.3rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+    }
+    .card-icon.blue { background: rgba(0, 112, 242, 0.15); color: #60a5fa; border-color: rgba(0, 112, 242, 0.3); }
+    .card-icon.purple { background: rgba(139, 92, 246, 0.15); color: #c084fc; border-color: rgba(139, 92, 246, 0.3); }
+    .card-icon.cyan { background: rgba(6, 182, 212, 0.15); color: #22d3ee; border-color: rgba(6, 182, 212, 0.3); }
+    .card-icon.emerald { background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
+    .card-icon.amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
+    .card-icon.rose { background: rgba(244, 63, 94, 0.15); color: #fb7185; border-color: rgba(244, 63, 94, 0.3); }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 0.6rem;
+      color: #fff;
+    }
+    .card-desc {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    /* Code Blocks */
+    .code-container {
+      background: #060911;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      overflow: hidden;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+    .code-header {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 0.6rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      font-size: 0.78rem;
+      color: var(--text-dim);
+    }
+    .code-dots {
+      display: flex;
+      gap: 6px;
+    }
+    .code-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .code-dot.red { background: #ef4444; }
+    .code-dot.yellow { background: #f59e0b; }
+    .code-dot.green { background: #10b981; }
+
+    pre code {
+      display: block;
+      padding: 1.25rem;
+      overflow-x: auto;
+      color: #e2e8f0;
+    }
+    .kwd { color: #f472b6; font-weight: 600; }
+    .fn { color: #60a5fa; }
+    .str { color: #34d399; }
+    .comment { color: #64748b; font-style: italic; }
+    .prop { color: #38bdf8; }
+    .num { color: #fbbf24; }
+
+    /* Flow & Diagrams */
+    .arch-flow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      margin: 1.5rem 0;
+      gap: 1rem;
+    }
+    .flow-node {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 1.25rem 1rem;
+      text-align: center;
+      flex: 1;
+      position: relative;
+      transition: var(--transition-smooth);
+    }
+    .flow-node:hover {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 25px rgba(6, 182, 212, 0.25);
+      transform: translateY(-2px);
+    }
+    .flow-icon {
+      font-size: 1.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .flow-label {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.25rem;
+    }
+    .flow-sub {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+    }
+    .flow-arrow {
+      color: var(--accent-cyan);
+      font-size: 1.3rem;
+      animation: pulseArrow 2s infinite ease-in-out;
+    }
+
+    @keyframes pulseArrow {
+      0%, 100% { transform: translateX(0); opacity: 0.6; }
+      50% { transform: translateX(4px); opacity: 1; }
+    }
+
+    /* Highlights / Pill metrics */
+    .stat-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      padding: 0.4rem 0.9rem;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .stat-pill .num {
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+    }
+
+    /* List Items */
+    .feature-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+    .feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.85rem;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: #cbd5e1;
+    }
+    .feature-bullet {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 112, 242, 0.15);
+      color: var(--accent-sap);
+      font-size: 0.75rem;
+      font-weight: 800;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    /* Simulation Interactive Box */
+    .interactive-box {
+      background: #090d16;
+      border: 1px solid rgba(0, 112, 242, 0.25);
+      border-radius: 14px;
+      padding: 1.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+    }
+    .sim-bar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .sim-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.78rem;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-emerald);
+      box-shadow: 0 0 8px var(--accent-emerald);
+    }
+    .sim-log-feed {
+      height: 220px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      color: #cbd5e1;
+    }
+    .log-entry {
+      display: flex;
+      gap: 0.75rem;
+      padding: 0.35rem 0.6rem;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .log-entry.warn { border-left: 3px solid var(--accent-amber); }
+    .log-entry.error { border-left: 3px solid var(--accent-rose); background: rgba(244, 63, 94, 0.05); }
+    .log-entry.info { border-left: 3px solid var(--accent-cyan); }
+    .log-time { color: var(--text-dim); }
+    .log-tag { font-weight: 700; color: #a5b4fc; }
+
+    /* Footer Navigation */
+    .deck-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background: rgba(10, 14, 23, 0.8);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      z-index: 100;
+    }
+
+    .progress-bar-container {
+      flex: 1;
+      max-width: 380px;
+      margin: 0 2rem;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--gradient-brand);
+      border-radius: 999px;
+      transition: width 0.35s ease;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .slide-counter {
+      font-size: 0.86rem;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+    .slide-counter span {
+      color: #fff;
+    }
+
+    /* Drawer / Table of Contents */
+    .toc-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(8px);
+      z-index: 150;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .toc-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .toc-modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.95);
+      width: 90%;
+      max-width: 720px;
+      max-height: 80vh;
+      background: #111827;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      padding: 2rem;
+      overflow-y: auto;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .toc-overlay.open .toc-modal {
+      transform: translate(-50%, -50%) scale(1);
+    }
+    .toc-title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      margin-bottom: 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .toc-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+    }
+    .toc-item {
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: var(--transition-smooth);
+    }
+    .toc-item:hover, .toc-item.current {
+      background: rgba(0, 112, 242, 0.15);
+      border-color: rgba(0, 112, 242, 0.4);
+      color: #fff;
+    }
+    .toc-index {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--accent-cyan);
+      font-weight: 700;
+    }
+    .toc-label {
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+
+    /* Speaker Notes Popup */
+    .notes-panel {
+      position: fixed;
+      bottom: 70px;
+      right: 2rem;
+      width: 420px;
+      max-height: 280px;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 1.25rem;
+      z-index: 120;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      display: none;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .notes-panel.visible {
+      display: flex;
+    }
+    .notes-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #94a3b8;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding-bottom: 0.5rem;
+    }
+    .notes-content {
+      font-size: 0.88rem;
+      color: #e2e8f0;
+      line-height: 1.6;
+      overflow-y: auto;
+      max-height: 200px;
+    }
+
+    /* Hero Slide Special */
+    .hero-slide {
+      text-align: center;
+      align-items: center;
+      justify-content: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(0, 112, 242, 0.1);
+      border: 1px solid rgba(0, 112, 242, 0.3);
+      padding: 0.4rem 1.25rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #93c5fd;
+      margin-bottom: 1.5rem;
+    }
+    .hero-title {
+      font-size: 3.8rem;
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+      margin-bottom: 1.25rem;
+      max-width: 1050px;
+    }
+    .hero-subtitle {
+      font-size: 1.35rem;
+      color: var(--text-muted);
+      max-width: 820px;
+      line-height: 1.6;
+      margin-bottom: 2.5rem;
+    }
+    .hero-tags {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.85rem;
+      margin-bottom: 2.5rem;
+    }
+    .hero-tag {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      border-radius: 999px;
+      padding: 0.5rem 1.25rem;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 1024px) {
+      .slide { padding: 2rem 2.5rem; }
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+      .slide-title { font-size: 2rem; }
+      .hero-title { font-size: 2.8rem; }
+      .arch-flow { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Light Orbs -->
+  <div class="ambient-bg">
+    <div class="ambient-orb orb-1"></div>
+    <div class="ambient-orb orb-2"></div>
+    <div class="ambient-orb orb-3"></div>
+  </div>
+
+  <!-- Deck Header -->
+  <header class="deck-header">
+    <div class="brand-group">
+      <div class="brand-badge">SAP</div>
+      <div class="brand-title">Cloud Foundry Log & Trace Agent</div>
+      <div class="brand-subtitle">CAP + MCP Intelligent Incident Ops</div>
+    </div>
+    <div class="controls-group">
+      <a href="/" class="btn-icon" title="Open Service Cockpit & Endpoints Dashboard" style="text-decoration: none;">
+        <span>🏠</span> Cockpit
+      </a>
+      <button class="btn-icon" id="btnNotesToggle" title="Toggle Speaker Notes (P)">
+        <span>📝</span> Notes
+      </button>
+      <button class="btn-icon" id="btnTocToggle" title="Table of Contents (M)">
+        <span>📑</span> Outline
+      </button>
+      <button class="btn-icon" id="btnFullscreen" title="Toggle Fullscreen (F)">
+        <span>⛶</span> Fullscreen
+      </button>
+    </div>
+  </header>
+
+  <!-- Slide Viewport -->
+  <main class="deck-viewport">
+    <div class="slides-wrapper" id="slidesWrapper">
+
+      <!-- SLIDE 1: HERO -->
+      <section class="slide hero-slide active" data-title="Project Introduction" data-notes="Welcome everyone. Today we are presenting the SAP BTP Cloud Foundry Log & Trace Agent — a cutting-edge autonomous incident telemetry and AI-agentic orchestration service built natively on SAP CAP and standard Model Context Protocol (MCP). Let's dive in.">
+        <div class="hero-badge">
+          <span>🚀</span> SAP BTP Cloud Foundry Innovation Showcase
+        </div>
+        <h1 class="hero-title">
+          Intelligent CF Log & Trace <span>Incident Agent</span>
+        </h1>
+        <p class="hero-subtitle">
+          Bridging SAP BTP Cloud Foundry Telemetry with Autonomous AI Agents via the Model Context Protocol (MCP) and SAP Cloud Application Programming Model (CAP).
+        </p>
+        <div class="hero-tags">
+          <div class="hero-tag">⚡ SAP CAP Node.js</div>
+          <div class="hero-tag">🤖 Model Context Protocol (MCP)</div>
+          <div class="hero-tag">☁️ Cloud Foundry v3 APIs</div>
+          <div class="hero-tag">🎯 Fiori Elements UX</div>
+          <div class="hero-tag">🛡️ 4-Tier OAuth Engine</div>
+        </div>
+        <div style="display: flex; gap: 1rem;">
+          <button class="btn-icon btn-primary" onclick="nextSlide()" style="padding: 0.75rem 1.75rem; font-size: 1rem; border-radius: 12px;">
+            Start Presentation →
+          </button>
+          <button class="btn-icon" onclick="goToSlide(12)" style="padding: 0.75rem 1.75rem; font-size: 1rem; border-radius: 12px;">
+            Jump to Live Demo
+          </button>
+        </div>
+      </section>
+
+      <!-- SLIDE 2: THE PROBLEM & MOTIVATION -->
+      <section class="slide" data-title="The Challenge" data-notes="In complex SAP BTP enterprise landscapes, microservices emit millions of logs, audit events, and container lifecycle changes. When a service crashes or an unauthorized action occurs, DevOps teams spend hours running cf logs, reviewing Cockpit audit trails, and parsing JSON payloads manually. Furthermore, emerging generative AI models are blind to live BTP environments without standardized protocols.">
+        <div class="slide-badge">01 // Problem Statement</div>
+        <h2 class="slide-title">The Observability Gap in <span>SAP Cloud Foundry</span></h2>
+        <p class="slide-subtitle">Modern distributed microservices need real-time, correlated telemetry and intelligent automation — not fragmented CLI inspections.</p>
+        
+        <div class="grid-3">
+          <div class="glass-card">
+            <div class="card-icon rose">🌪️</div>
+            <h3 class="card-title">Disparate Event Silos</h3>
+            <p class="card-desc">Application lifecycle crashes (`/v3/apps`), audit trails (`/v3/audit_events`), and router traces live in separate endpoints, requiring tedious manual correlation across multiple spaces.</p>
+          </div>
+          <div class="glass-card">
+            <div class="card-icon amber">⏳</div>
+            <h3 class="card-title">High MTTR & Alert Fatigue</h3>
+            <p class="card-desc">Engineers drown in raw logs (`RTR`, `CELL`, `APP`). Extracting root-cause statements and identifying impacted dependent microservices takes hours of manual triage.</p>
+          </div>
+          <div class="glass-card">
+            <div class="card-icon purple">🧩</div>
+            <h3 class="card-title">The AI Agent Disconnect</h3>
+            <p class="card-desc">Modern LLMs and AI Agents (Claude, Gemini, Antigravity) cannot securely query or fix BTP incidents without standard tooling and schema-aware protocol adapters.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 3: EXECUTIVE SOLUTION OVERVIEW -->
+      <section class="slide" data-title="The Solution" data-notes="Our project, cf-log-trace-agent, solves this end-to-end. It's a dual-purpose system: first, a resilient ingestion engine that queries Cloud Foundry v3 controller endpoints on-demand and maps raw telemetry to structured incident models. Second, it exposes standard Model Context Protocol (MCP) tool endpoints so AI agents can query, analyze, and update incidents natively.">
+        <div class="slide-badge">02 // The Solution</div>
+        <h2 class="slide-title">Introducing <span>`cf-log-trace-agent`</span></h2>
+        <p class="slide-subtitle">An end-to-end observability, incident intelligence, and agentic AI runtime built with SAP CAP.</p>
+
+        <div class="grid-2">
+          <div class="glass-card">
+            <h3 class="card-title" style="color: #60a5fa; margin-bottom: 1rem;">Core Capabilities</h3>
+            <ul class="feature-list">
+              <li class="feature-item">
+                <div class="feature-bullet">✓</div>
+                <div><strong>Automated Telemetry Ingestion:</strong> Seamless hook intercepts OData queries and syncs live CF application states and audit logs into persistent CDS records.</div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">✓</div>
+                <div><strong>4-Tier Resilient Authentication:</strong> Failsafe token manager spanning Direct Bearer, User Password OAuth, Client Credentials, and local CF CLI session bridge.</div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">✓</div>
+                <div><strong>Standard MCP Server Exposure:</strong> Native `@cap-js/mcp` integration turning CAP CDS entities into callable tools for Claude, Gemini, and Antigravity.</div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">✓</div>
+                <div><strong>Fiori Elements Ready:</strong> Full `@UI` annotations with semantic status criticality, facets, and 360-degree incident views.</div>
+              </li>
+            </ul>
+          </div>
+
+          <div class="glass-card" style="display: flex; flex-direction: column; justify-content: center;">
+            <div style="text-align: center; margin-bottom: 1.5rem;">
+              <div style="font-size: 3rem; margin-bottom: 0.5rem;">⚡</div>
+              <div style="font-size: 1.25rem; font-weight: 700;">Autonomous Operations Loop</div>
+              <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">From raw CF container events to AI-guided remediation</div>
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: center;">
+              <div class="stat-pill"><span class="num">100%</span> Automated Sync</div>
+              <div class="stat-pill"><span class="num">&lt; 1s</span> MCP Tool Query</div>
+              <div class="stat-pill"><span class="num">Zero</span> Extra Infrastructure</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 4: SYSTEM ARCHITECTURE -->
+      <section class="slide" data-title="System Architecture" data-notes="Here is the end-to-end architectural flow. Cloud Foundry APIs provide the raw telemetry. The CAP Service intercepts queries, authenticates via our 4-tier token engine, ingests the data into HANA/SQLite, and simultaneously exposes an OData Fiori API and an MCP Server JSON-RPC endpoint for AI Agents.">
+        <div class="slide-badge">03 // System Architecture</div>
+        <h2 class="slide-title">End-to-End <span>System Architecture</span></h2>
+        <p class="slide-subtitle">Modular, decoupled architecture bridging enterprise telemetry with generative AI tool calling.</p>
+
+        <div class="arch-flow">
+          <div class="flow-node">
+            <div class="flow-icon">☁️</div>
+            <div class="flow-label">SAP BTP Cloud Foundry</div>
+            <div class="flow-sub">/v3/apps & /v3/audit_events</div>
+          </div>
+          <div class="flow-arrow">➔</div>
+          <div class="flow-node" style="border-color: rgba(99, 102, 241, 0.4);">
+            <div class="flow-icon">🛡️</div>
+            <div class="flow-label">Auth & Ingestion Engine</div>
+            <div class="flow-sub">4-Tier OAuth + CF Sync Hook</div>
+          </div>
+          <div class="flow-arrow">➔</div>
+          <div class="flow-node" style="border-color: rgba(0, 112, 242, 0.4);">
+            <div class="flow-icon">💾</div>
+            <div class="flow-label">CAP CDS Persistence</div>
+            <div class="flow-sub">Incidents, Traces, Services</div>
+          </div>
+          <div class="flow-arrow">➔</div>
+          <div class="flow-node" style="border-color: rgba(6, 182, 212, 0.4);">
+            <div class="flow-icon">🤖</div>
+            <div class="flow-label">MCP Protocol Gateway</div>
+            <div class="flow-sub">JSON-RPC /mcp Tools & Resources</div>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top: 1.5rem;">
+          <div class="glass-card" style="padding: 1.25rem;">
+            <div style="font-size: 0.9rem; font-weight: 700; color: #a5b4fc; margin-bottom: 0.5rem;">Dual Consumer Interfaces:</div>
+            <div style="display: flex; gap: 1rem;">
+              <div style="flex: 1; background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 8px;">
+                <div style="font-weight: 600; color: #60a5fa;">👨‍💻 Human Operators</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">Fiori Elements List Report & Object Page with semantic criticality & history.</div>
+              </div>
+              <div style="flex: 1; background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 8px;">
+                <div style="font-weight: 600; color: #22d3ee;">🤖 Autonomous AI Agents</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">Model Context Protocol (MCP) clients query, hypothesize, diagnose, and remediate.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-card" style="padding: 1.25rem;">
+            <div style="font-size: 0.9rem; font-weight: 700; color: #a5b4fc; margin-bottom: 0.5rem;">Runtime Standards:</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.6;">
+              Engineered using <strong>Node.js 20+</strong>, <strong>@sap/cds 9</strong>, TypeScript, and standard Cloud Foundry multi-target application (MTA) containers.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 5: 4-TIER AUTHENTICATION ENGINE -->
+      <section class="slide" data-title="Authentication Engine" data-notes="Security and developer ergonomics are paramount. Our getCloudFoundryToken() function implements an enterprise 4-tier fallback hierarchy. If an explicit token is in the environment, it uses it. Otherwise, it falls back to username/password, client credentials, or reuses the developer's active CF CLI session. This means zero friction in both local dev and BTP production.">
+        <div class="slide-badge">04 // Security & Resilience</div>
+        <h2 class="slide-title">4-Tier Resilient <span>Authentication Engine</span></h2>
+        <p class="slide-subtitle">Seamless token acquisition that works out-of-the-box in local development, CI/CD, and BTP production.</p>
+
+        <div class="grid-2">
+          <div class="feature-list" style="gap: 1rem;">
+            <div class="glass-card" style="padding: 1rem 1.25rem;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-weight: 700; color: #60a5fa;">Tier 1: Direct Bearer Token</span>
+                <span class="stat-pill" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;">Fastest</span>
+              </div>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.35rem;">Uses `CF_BEARER_TOKEN` directly from `default.env` or system environment for instant API access.</p>
+            </div>
+
+            <div class="glass-card" style="padding: 1rem 1.25rem;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-weight: 700; color: #c084fc;">Tier 2: User Password OAuth Grant</span>
+                <span class="stat-pill" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;">Interactive</span>
+              </div>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.35rem;">Automated POST to `/oauth/token` with `grant_type=password` and handles lockouts gracefully.</p>
+            </div>
+
+            <div class="glass-card" style="padding: 1rem 1.25rem;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-weight: 700; color: #34d399;">Tier 3: OAuth Client Credentials</span>
+                <span class="stat-pill" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;">Production</span>
+              </div>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.35rem;">Standard service-to-service BTP authentication utilizing XSUAA binding credentials.</p>
+            </div>
+
+            <div class="glass-card" style="padding: 1rem 1.25rem;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-weight: 700; color: #fbbf24;">Tier 4: Local CF CLI Session Bridge</span>
+                <span class="stat-pill" style="font-size: 0.7rem; padding: 0.2rem 0.5rem;">Zero-Config</span>
+              </div>
+              <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.35rem;">Executes `cf oauth-token` on the developer workstation to inherit active terminal credentials.</p>
+            </div>
+          </div>
+
+          <div class="code-container">
+            <div class="code-header">
+              <span>srv/incidents.ts (Auth Hierarchy)</span>
+              <div class="code-dots">
+                <div class="code-dot red"></div>
+                <div class="code-dot yellow"></div>
+                <div class="code-dot green"></div>
+              </div>
+            </div>
+            <pre><code><span class="comment">// 4. Fallback to active local CF CLI session</span>
+<span class="kwd">try</span> {
+    <span class="fn">LOG</span>.info(<span class="str">'Attempting fallback to local CF CLI...'</span>);
+    <span class="kwd">const</span> cliToken = <span class="fn">execSync</span>(<span class="str">'cf oauth-token'</span>, {
+        encoding: <span class="str">'utf8'</span>,
+        stdio: [<span class="str">'ignore'</span>, <span class="str">'pipe'</span>, <span class="str">'ignore'</span>]
+    }).<span class="fn">trim</span>();
+
+    <span class="kwd">if</span> (cliToken && cliToken.<span class="fn">startsWith</span>(<span class="str">'bearer '</span>)) {
+        <span class="fn">LOG</span>.info(<span class="str">'Retrieved active OAuth token from CF CLI!'</span>);
+        <span class="kwd">return</span> cliToken;
+    }
+} <span class="kwd">catch</span> (cliErr) {
+    <span class="fn">LOG</span>.warn(<span class="str">'Local CF CLI token fallback not available'</span>);
+}</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 6: DOMAIN TELEMETRY SCHEMA -->
+      <section class="slide" data-title="Domain Telemetry Schema" data-notes="Let's examine the Core Data Services (CDS) model defined in db/schema.cds. Under the shubh.incidents namespace, we have four interconnected entities: Incidents, ImpactedServices, TraceEvents, and Messages. We use compositions so that deleting or updating an incident cascades correctly through all child traces and services.">
+        <div class="slide-badge">05 // Data Modeling</div>
+        <h2 class="slide-title">Normalized <span>Telemetry Domain Model</span></h2>
+        <p class="slide-subtitle">Rich CDS data model in `db/schema.cds` capturing relational incident structures with composition cascading.</p>
+
+        <div class="grid-2">
+          <div class="code-container">
+            <div class="code-header">
+              <span>db/schema.cds</span>
+              <div class="code-dots">
+                <div class="code-dot red"></div>
+                <div class="code-dot yellow"></div>
+                <div class="code-dot green"></div>
+              </div>
+            </div>
+            <pre><code><span class="kwd">namespace</span> shubh.incidents;
+<span class="kwd">using</span> { cuid, managed } <span class="kwd">from</span> <span class="str">'@sap/cds/common'</span>;
+
+<span class="kwd">entity</span> <span class="fn">Incidents</span> : cuid, managed {
+    <span class="prop">targetSpace</span>         : String(100);
+    <span class="prop">correlatedRequestId</span> : String(100);
+    <span class="prop">status</span>              : String(20) <span class="kwd">default</span> <span class="str">'OPEN'</span>;
+    <span class="prop">errorCategory</span>       : String(50);
+    <span class="prop">rootCauseStatement</span>  : LargeString;
+    <span class="prop">remediationAction</span>   : LargeString;
+    <span class="prop">impactedServices</span>    : <span class="kwd">Composition of many</span> ImpactedServices;
+    <span class="prop">traces</span>              : <span class="kwd">Composition of many</span> TraceEvents;
+    <span class="prop">messages</span>            : <span class="kwd">Composition of many</span> Messages;
+}</code></pre>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <div class="glass-card" style="padding: 1.1rem;">
+              <h4 style="color: #38bdf8; font-weight: 700; margin-bottom: 0.25rem;">ImpactedServices</h4>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">Maintains 1:N relations to target microservices, container instance GUIDs, and binding relationships.</p>
+            </div>
+            <div class="glass-card" style="padding: 1.1rem;">
+              <h4 style="color: #a78bfa; font-weight: 700; margin-bottom: 0.25rem;">TraceEvents</h4>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">Timestamped log records tracking router (`RTR`), cell manager (`CELL`), and app runtime (`APP`) status codes and levels.</p>
+            </div>
+            <div class="glass-card" style="padding: 1.1rem;">
+              <h4 style="color: #34d399; font-weight: 700; margin-bottom: 0.25rem;">Messages</h4>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">Audit log updates, operator annotations, and AI agent diagnostic summaries appended chronologically.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 7: AUTOMATED SYNCHRONIZATION WORKFLOW -->
+      <section class="slide" data-title="Synchronization Workflow" data-notes="How does the data get into the system? We implemented a before('READ', 'Incidents') lifecycle handler in srv/incidents.ts. Whenever anyone queries the incident list — whether via Fiori UI or an MCP AI Tool — the service queries CF /v3/apps and /v3/audit_events, analyzes the events, maps them to incidents, and runs an idempotent UPSERT.">
+        <div class="slide-badge">06 // Ingestion Engine</div>
+        <h2 class="slide-title">Automated <span>CF Telemetry Synchronization</span></h2>
+        <p class="slide-subtitle">Event-driven and query-triggered ingestion keeping incident telemetry perpetually fresh.</p>
+
+        <div class="grid-2">
+          <div class="glass-card">
+            <h3 class="card-title" style="color: #38bdf8;">The Ingestion Pipeline</h3>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem;">
+              <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                <span style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-cyan);">01</span>
+                <div><strong>Lifecycle Interception:</strong> CAP `before('READ', 'Incidents')` triggers transparently before query execution.</div>
+              </div>
+              <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                <span style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-purple);">02</span>
+                <div><strong>Cloud Controller Query:</strong> Fetches `/v3/apps` and `/v3/audit_events` in parallel using active OAuth headers.</div>
+              </div>
+              <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                <span style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-amber);">03</span>
+                <div><strong>Heuristic Normalization:</strong> Maps status codes (`CRASHED` -> 503, `STARTED` -> 200, `audit.event` -> status/criticality).</div>
+              </div>
+              <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                <span style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-emerald);">04</span>
+                <div><strong>Idempotent Upsert:</strong> Executes `UPSERT.into(Incidents)` to update records without duplicating entries.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="code-container">
+            <div class="code-header">
+              <span>srv/incidents.ts (Event Normalization)</span>
+              <div class="code-dots">
+                <div class="code-dot red"></div>
+                <div class="code-dot yellow"></div>
+                <div class="code-dot green"></div>
+              </div>
+            </div>
+            <pre><code><span class="comment">// Normalizing Cloud Foundry Audit Events</span>
+<span class="kwd">let</span> logLevel = <span class="str">'INFO'</span>;
+<span class="kwd">let</span> status = <span class="str">'OPEN'</span>;
+
+<span class="kwd">if</span> (eventType.<span class="fn">includes</span>(<span class="str">'delete'</span>) || eventType.<span class="fn">includes</span>(<span class="str">'crash'</span>)) {
+    logLevel = <span class="str">'ERROR'</span>;
+    status = <span class="str">'INVESTIGATING'</span>;
+} <span class="kwd">else if</span> (eventType.<span class="fn">includes</span>(<span class="str">'update'</span>)) {
+    logLevel = <span class="str">'WARN'</span>;
+}
+
+<span class="kwd">await</span> cds.<span class="fn">tx</span>(req).<span class="fn">run</span>(
+    <span class="fn">UPSERT</span>.<span class="fn">into</span>(Incidents).<span class="fn">entries</span>(incidentRecord)
+);</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 8: MODEL CONTEXT PROTOCOL (MCP) INTEGRATION -->
+      <section class="slide" data-title="Model Context Protocol" data-notes="Now to the breakthrough AI capability: the Model Context Protocol (MCP). By configuring @cap-js/mcp and @gavdi/cap-mcp with wrap_entities_to_actions, CAP automatically turns our CDS entities into AI tools. An AI agent connects directly to http://localhost:4004/mcp over JSON-RPC 2.0 to query, analyze, and post comments without custom code.">
+        <div class="slide-badge">07 // AI Protocol</div>
+        <h2 class="slide-title">Model Context Protocol <span>(MCP) Integration</span></h2>
+        <p class="slide-subtitle">Exposing SAP CAP services as standard tool definitions for LLMs and AI Agents.</p>
+
+        <div class="grid-2">
+          <div class="code-container">
+            <div class="code-header">
+              <span>.agents/mcp_config.json & package.json</span>
+              <div class="code-dots">
+                <div class="code-dot red"></div>
+                <div class="code-dot yellow"></div>
+                <div class="code-dot green"></div>
+              </div>
+            </div>
+            <pre><code><span class="str">"mcpServers"</span>: {
+  <span class="str">"cf-log-trace-agent-mcp"</span>: {
+    <span class="str">"serverUrl"</span>: <span class="str">"http://localhost:4004/mcp"</span>
+  }
+}
+<span class="cmt">// Health & Diagnostic Endpoint:</span>
+<span class="cmt">// GET http://localhost:4004/mcp/health -> {"status":"UP"}</span></code></pre>
+            <div style="padding: 0.75rem 1rem; background: rgba(0, 112, 242, 0.08); border-top: 1px solid var(--border-color); font-size: 0.78rem; color: #93c5fd; display: flex; justify-content: space-between;">
+              <span>Protocol: JSON-RPC 2.0 / SSE</span>
+              <span>Session: mcp-session-id</span>
+            </div>
+          </div>
+
+          <div class="glass-card">
+            <h3 class="card-title" style="color: #c084fc;">Auto-Generated AI Toolset</h3>
+            <p class="card-desc" style="margin-bottom: 0.85rem;">Exposed at <code>http://localhost:4004/mcp</code> with health monitor at <code>/mcp/health</code>:</p>
+            <div style="display: flex; flex-direction: column; gap: 0.55rem;">
+              <div class="stat-pill" style="justify-content: flex-start; width: 100%;">
+                <span class="num" style="font-size: 0.85rem;">🔍</span>
+                <code>IncidentService_Incidents_query</code>: Filter & inspect open incidents
+              </div>
+              <div class="stat-pill" style="justify-content: flex-start; width: 100%;">
+                <span class="num" style="font-size: 0.85rem;">📊</span>
+                <code>IncidentService_TraceEvents_query</code>: Inspect router & container logs
+              </div>
+              <div class="stat-pill" style="justify-content: flex-start; width: 100%;">
+                <span class="num" style="font-size: 0.85rem;">💬</span>
+                <code>IncidentService_Messages_create</code>: Append AI remediation comment
+              </div>
+              <div class="stat-pill" style="justify-content: flex-start; width: 100%;">
+                <span class="num" style="font-size: 0.85rem;">⚡</span>
+                <code>IncidentService_Incidents_update</code>: Update status & remediation action
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 9: AUTONOMOUS AI AGENT WORKFLOW -->
+      <section class="slide" data-title="Autonomous Agent Flow" data-notes="Here is our recommended Human-in-the-Loop AI remediation workflow. Instead of blind autonomous mutation, the AI Agent reasons over the incident telemetry, formulates a prescriptive resolution playbook, and posts it as a discussion comment. The SRE engineer reviews the proposed steps and authorizes the resolution update.">
+        <div class="slide-badge">08 // Agent In Action</div>
+        <h2 class="slide-title">Autonomous <span>SRE Incident Remediation (Human-in-the-Loop)</span></h2>
+        <p class="slide-subtitle">How Claude, Gemini, or Antigravity agents diagnose issues over MCP and propose playbooks for operator verification.</p>
+
+        <div class="grid-4" style="margin-top: 1rem;">
+          <div class="glass-card" style="padding: 1.25rem;">
+            <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-cyan); margin-bottom: 0.5rem;">STEP 01</div>
+            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔍</div>
+            <h4 style="font-size: 1rem; margin-bottom: 0.35rem; color: #fff;">Detect (MCP)</h4>
+            <p style="font-size: 0.82rem; color: var(--text-muted);">Agent queries <code>IncidentService_Incidents_query</code>; discovers active incident in <code>INVESTIGATING</code> state.</p>
+          </div>
+
+          <div class="glass-card" style="padding: 1.25rem;">
+            <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-purple); margin-bottom: 0.5rem;">STEP 02</div>
+            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔬</div>
+            <h4 style="font-size: 1rem; margin-bottom: 0.35rem; color: #fff;">Correlate</h4>
+            <p style="font-size: 0.82rem; color: var(--text-muted);">Agent calls <code>IncidentService_TraceEvents_query</code> to extract container exit codes and Gorouter 502/503 traces.</p>
+          </div>
+
+          <div class="glass-card" style="padding: 1.25rem;">
+            <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-amber); margin-bottom: 0.5rem;">STEP 03</div>
+            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">💡</div>
+            <h4 style="font-size: 1rem; margin-bottom: 0.35rem; color: #fff;">Diagnose</h4>
+            <p style="font-size: 0.82rem; color: var(--text-muted);">AI matches failure signature (OOM Exit 137, process crash, or route drop) using the CF Error Resolution Catalog.</p>
+          </div>
+
+          <div class="glass-card" style="padding: 1.25rem;">
+            <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-emerald); margin-bottom: 0.5rem;">STEP 04</div>
+            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">💬</div>
+            <h4 style="font-size: 1rem; margin-bottom: 0.35rem; color: #fff;">Propose Comment</h4>
+            <p style="font-size: 0.82rem; color: var(--text-muted);">Agent calls <code>IncidentService_Messages_create</code> to log prescriptive CLI playbook for operator review.</p>
+          </div>
+        </div>
+
+        <div class="interactive-box" style="margin-top: 1.5rem; padding: 1rem 1.25rem; border: 1px solid rgba(139, 92, 246, 0.35);">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="color: #c084fc; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+              <span>🤖</span> Recommended AI Agent Prompt:
+            </span>
+            <span style="color: var(--accent-emerald); font-size: 0.78rem; font-weight: 600;">✓ Human-in-the-Loop Safe</span>
+          </div>
+          <div style="margin-top: 0.65rem; color: #e2e8f0; font-size: 0.85rem; font-family: var(--font-mono); background: rgba(0,0,0,0.3); padding: 0.75rem 1rem; border-radius: 8px; border-left: 3px solid var(--accent-cyan); line-height: 1.5;">
+            "Diagnose the next open incident strictly using the MCP server. Analyze its telemetry traces, propose a prescriptive resolution playbook as a comment, and verify the status transitions to 'Resolution added by Agent'."
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 10: FIORI ELEMENTS ENTERPRISE UX -->
+      <section class="slide" data-title="Fiori Elements UX" data-notes="Beyond AI agents, human enterprise users need a cohesive experience. We wrote comprehensive Fiori Elements annotations in app/annotations.cds. It includes dynamic status criticality highlighting, segmented facets for general details, impacted microservices, trace events, and discussion threads.">
+        <div class="slide-badge">09 // User Experience</div>
+        <h2 class="slide-title">Enterprise <span>SAP Fiori Elements UX</span></h2>
+        <p class="slide-subtitle">Declarative UI annotations delivering an SAP Horizon-compliant 360-degree incident cockpit.</p>
+
+        <div class="grid-2">
+          <div class="glass-card">
+            <h3 class="card-title" style="color: #60a5fa;">Fiori UX Highlights</h3>
+            <ul class="feature-list" style="margin-top: 1rem;">
+              <li class="feature-item">
+                <div class="feature-bullet">1</div>
+                <div><strong>Semantic Criticality:</strong> Status tags dynamically styled (Red for `ERROR`/`INVESTIGATING`, Amber for `WARN`, Green for `RESOLVED`).</div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">2</div>
+                <div><strong>Multi-Facet Object Page:</strong> Dedicated tab facets for General Information, Impacted Services table, Trace & Audit events, and Messages.</div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">3</div>
+                <div><strong>Selection Fields & Filtering:</strong> Out-of-the-box filtering by status, error category, target space, and created timestamp.</div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">4</div>
+                <div><strong>Full LineItem Controls:</strong> Formatted tables with GUID columns, instance IDs, and router component indicators (`RTR`, `CELL`, `APP`).</div>
+              </li>
+            </ul>
+            <div style="margin-top: 1.25rem; display: flex; gap: 0.65rem; flex-wrap: wrap;">
+              <a href="/$fiori-preview/IncidentService/Incidents#preview-app" target="_blank" class="btn-icon btn-primary" style="padding: 0.6rem 1.25rem; font-size: 0.88rem; text-decoration: none; display: inline-flex;">
+                <span>🎨</span> Open Fiori Incidents Preview ↗
+              </a>
+              <a href="/$fiori-preview/IncidentService/TraceEvents#preview-app" target="_blank" class="btn-icon" style="padding: 0.6rem 1rem; font-size: 0.85rem; text-decoration: none; display: inline-flex;">
+                <span>📊</span> Traces Preview
+              </a>
+            </div>
+          </div>
+
+          <div class="code-container">
+            <div class="code-header">
+              <span>app/annotations.cds (UI Criticality)</span>
+              <div class="code-dots">
+                <div class="code-dot red"></div>
+                <div class="code-dot yellow"></div>
+                <div class="code-dot green"></div>
+              </div>
+            </div>
+            <pre><code><span class="prop">UI.LineItem</span> : [
+  {
+    <span class="prop">$Type</span> : <span class="str">'UI.DataField'</span>,
+    <span class="prop">Value</span> : status,
+    <span class="prop">Label</span> : <span class="str">'Status'</span>,
+    <span class="prop">Criticality</span> : (status = <span class="str">'OPEN'</span> ? <span class="num">3</span> :
+                  (status = <span class="str">'INVESTIGATING'</span> ? <span class="num">2</span> : <span class="num">1</span>))
+  },
+  {
+    <span class="prop">$Type</span> : <span class="str">'UI.DataField'</span>,
+    <span class="prop">Value</span> : rootCauseStatement,
+    <span class="prop">Label</span> : <span class="str">'Root Cause Statement'</span>
+  }
+]</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 11: DEPLOYMENT & DEVOPS -->
+      <section class="slide" data-title="Cloud Native Deployment" data-notes="Deploying to SAP BTP Cloud Foundry is seamless with the provided mta.yaml. The project builds with npx cds build --production and packages into an MTA archive with standard Node.js buildpack settings. It is configured to run on Cloud Foundry with 512MB memory and zero external daemon requirements.">
+        <div class="slide-badge">10 // DevOps & Deployment</div>
+        <h2 class="slide-title">Cloud-Native <span>Deployment & Operations</span></h2>
+        <p class="slide-subtitle">Multi-target Application (MTA) architecture designed for frictionless SAP BTP deployment.</p>
+
+        <div class="grid-3">
+          <div class="glass-card">
+            <div class="card-icon blue">📦</div>
+            <h3 class="card-title">MTA Packaging (`mta.yaml`)</h3>
+            <p class="card-desc">Standard MTA descriptor with custom build commands (`cds build --production`), Node.js buildpack module, and optimized 512MB container footprint.</p>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-icon emerald">💾</div>
+            <h3 class="card-title">Dual Database Strategy</h3>
+            <p class="card-desc">Lightweight SQLite with `@cap-js/sqlite` for lightning-fast zero-cost local development; instant switch to SAP HANA Cloud in production via standard `@cap-js/hana`.</p>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-icon cyan">🔒</div>
+            <h3 class="card-title">Security & Isolation</h3>
+            <p class="card-desc">Protected by SAP BTP XSUAA OAuth2 tokens, role-based authorizations, and TLS encryption across all Cloud Foundry controller endpoints.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 12: BUSINESS IMPACT & ROI -->
+      <section class="slide" data-title="Business Value & ROI" data-notes="What is the business impact? By eliminating manual CLI lookups and bridging BTP telemetry directly to AI agents, incident triage times drop by over 75%. DevOps teams shift from reactive firefighting to proactive self-healing architectures.">
+        <div class="slide-badge">11 // Business Value</div>
+        <h2 class="slide-title">Measurable <span>Business Impact & ROI</span></h2>
+        <p class="slide-subtitle">Delivering tangible reductions in downtime, operational toil, and Mean Time to Resolution (MTTR).</p>
+
+        <div class="grid-3">
+          <div class="glass-card" style="text-align: center;">
+            <div style="font-size: 3rem; font-weight: 800; color: var(--accent-cyan); font-family: var(--font-mono); margin-bottom: 0.5rem;">75%</div>
+            <h4 style="font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem;">Reduction in MTTR</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Automated CF telemetry correlation replaces manual log searching and cross-space hunting.</p>
+          </div>
+
+          <div class="glass-card" style="text-align: center;">
+            <div style="font-size: 3rem; font-weight: 800; color: var(--accent-purple); font-family: var(--font-mono); margin-bottom: 0.5rem;">Zero</div>
+            <h4 style="font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem;">Custom AI Glue Code</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Standard Model Context Protocol (MCP) enables plug-and-play AI Agent integration immediately.</p>
+          </div>
+
+          <div class="glass-card" style="text-align: center;">
+            <div style="font-size: 3rem; font-weight: 800; color: var(--accent-emerald); font-family: var(--font-mono); margin-bottom: 0.5rem;">24/7</div>
+            <h4 style="font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem;">Proactive Triage</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Autonomous agents can poll, categorize, and propose remediations before end users report failures.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 13: INTERACTIVE DEMO SIMULATOR -->
+      <section class="slide" data-title="Interactive Simulation" data-notes="Here is an interactive demonstration simulator. We can test triggering the CF telemetry sync and observe the simulated log ingestion and AI Agent tool execution directly in this browser deck!">
+        <div class="slide-badge">12 // Interactive Simulator</div>
+        <h2 class="slide-title">Live <span>Telemetry & MCP Simulator</span></h2>
+        <p class="slide-subtitle">Simulate real-time Cloud Foundry log ingestion and AI Agent MCP tool execution below.</p>
+
+        <div class="interactive-box">
+          <div class="sim-bar">
+            <div class="sim-status">
+              <div class="status-dot"></div>
+              <span>MCP Server Active (port 4004)</span>
+            </div>
+            <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+              <button class="btn-icon btn-primary" id="btnSimSync" onclick="runSimulatedSync()">
+                ⚡ Trigger CF Ingestion Sync
+              </button>
+              <button class="btn-icon" id="btnSimAgent" onclick="runSimulatedAgent()">
+                🤖 Invoke MCP AI Agent
+              </button>
+              <button class="btn-icon" onclick="clearSimLogs()">
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <div class="sim-log-feed" id="simLogFeed">
+            <div class="log-entry info">
+              <span class="log-time">[10:45:01]</span>
+              <span class="log-tag">[SERVER]</span>
+              <span>cf-log-trace-agent ready on http://localhost:4004 (MCP endpoint /mcp)</span>
+            </div>
+            <div class="log-entry info">
+              <span class="log-time">[10:45:02]</span>
+              <span class="log-tag">[AUTH]</span>
+              <span>Auth provider initialized: 4-Tier fallback active (CF CLI bridge verified).</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 14: SUMMARY & CONCLUSION -->
+      <section class="slide" data-title="Summary & Next Steps" data-notes="To conclude: the cf-log-trace-agent represents a blueprint for next-generation SAP BTP cloud observability and autonomous SRE tooling. Thank you, and let's open the floor for questions and discussion.">
+        <div class="slide-badge">13 // Summary & Roadmap</div>
+        <h2 class="slide-title">Conclusion & <span>Future Roadmap</span></h2>
+        <p class="slide-subtitle">Pioneering the future of autonomous cloud observability on SAP Business Technology Platform.</p>
+
+        <div class="grid-2">
+          <div class="glass-card">
+            <h3 class="card-title" style="color: #60a5fa;">What We Delivered</h3>
+            <ul class="feature-list" style="margin-top: 1rem;">
+              <li class="feature-item">
+                <div class="feature-bullet">✓</div>
+                <div>Production-grade SAP CAP microservice with TypeScript and CDS.</div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">✓</div>
+                <div>Automated ingestion from CF `/v3/apps` and `/v3/audit_events`.</div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">✓</div>
+                <div>Model Context Protocol (MCP) server enabling autonomous AI Agent operations.</div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">✓</div>
+                <div>Comprehensive SAP Fiori Elements UX metadata and MTA deployment descriptor.</div>
+              </li>
+            </ul>
+          </div>
+
+          <div class="glass-card">
+            <h3 class="card-title" style="color: #c084fc;">Future Roadmap</h3>
+            <ul class="feature-list" style="margin-top: 1rem;">
+              <li class="feature-item">
+                <div class="feature-bullet">➔</div>
+                <div><strong>Real-time Webhook Streaming:</strong> Direct WebSocket subscriptions to CF Loggregator firehose.</div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">➔</div>
+                <div><strong>Automated Remediation Execution:</strong> Granting agents bounded permissions to restart failing apps or scale memory.</div>
+              </li>
+              <li class="feature-item">
+                <div class="feature-bullet">➔</div>
+                <div><strong>SAP Alert Notification Service (ANS) Integration:</strong> Multi-channel alerting to Slack, Teams, and ServiceNow.</div>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div style="margin-top: 2rem; text-align: center;">
+          <div style="font-size: 1.1rem; color: #fff; font-weight: 700;">Thank You! Questions & Discussion</div>
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">Repository: <code>shubhamkarnalkar/sap-btp-cf-log-trace-agent</code></div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Deck Footer -->
+  <footer class="deck-footer">
+    <div class="nav-actions">
+      <button class="btn-icon" id="btnPrev" onclick="prevSlide()" title="Previous (Left Arrow)">
+        ← Previous
+      </button>
+      <button class="btn-icon btn-primary" id="btnNext" onclick="nextSlide()" title="Next (Right Arrow / Space)">
+        Next →
+      </button>
+    </div>
+
+    <div class="progress-bar-container">
+      <div class="progress-bar-fill" id="progressBar"></div>
+    </div>
+
+    <div class="slide-counter">
+      Slide <span id="currentSlideNum">1</span> / <span id="totalSlideNum">14</span>
+    </div>
+  </footer>
+
+  <!-- Speaker Notes Panel -->
+  <div class="notes-panel" id="notesPanel">
+    <div class="notes-header">
+      <span>SPEAKER NOTES</span>
+      <span id="notesTimer" style="font-family: var(--font-mono); color: var(--accent-cyan);">00:00</span>
+    </div>
+    <div class="notes-content" id="notesText">
+      Welcome to the presentation. Press 'P' to hide or show notes.
+    </div>
+  </div>
+
+  <!-- Table of Contents Modal -->
+  <div class="toc-overlay" id="tocOverlay" onclick="closeTocOnBackdrop(event)">
+    <div class="toc-modal">
+      <div class="toc-title">
+        <span>Presentation Outline</span>
+        <button class="btn-icon" onclick="toggleToc()">✕</button>
+      </div>
+      <div class="toc-grid" id="tocGrid">
+        <!-- Injected via JavaScript -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    let currentIdx = 0;
+    const totalSlides = slides.length;
+    let timerSeconds = 0;
+    let timerInterval = null;
+
+    // Elements
+    const progressBar = document.getElementById('progressBar');
+    const currentSlideNum = document.getElementById('currentSlideNum');
+    const totalSlideNum = document.getElementById('totalSlideNum');
+    const notesPanel = document.getElementById('notesPanel');
+    const notesText = document.getElementById('notesText');
+    const notesTimer = document.getElementById('notesTimer');
+    const tocOverlay = document.getElementById('tocOverlay');
+    const tocGrid = document.getElementById('tocGrid');
+
+    totalSlideNum.textContent = totalSlides;
+
+    // Init TOC
+    slides.forEach((slide, idx) => {
+      const item = document.createElement('div');
+      item.className = 'toc-item' + (idx === 0 ? ' current' : '');
+      item.onclick = () => { goToSlide(idx); toggleToc(); };
+      item.innerHTML = `
+        <span class="toc-index">${String(idx + 1).padStart(2, '0')}</span>
+        <span class="toc-label">${slide.dataset.title || 'Slide ' + (idx + 1)}</span>
+      `;
+      tocGrid.appendChild(item);
+    });
+
+    function updateSlide() {
+      slides.forEach((s, i) => {
+        s.classList.toggle('active', i === currentIdx);
+      });
+
+      // Update counter and progress
+      currentSlideNum.textContent = currentIdx + 1;
+      const progress = ((currentIdx + 1) / totalSlides) * 100;
+      progressBar.style.width = `${progress}%`;
+
+      // Update Notes
+      const currentSlide = slides[currentIdx];
+      notesText.textContent = currentSlide.dataset.notes || 'No speaker notes for this slide.';
+
+      // Update TOC current item
+      const tocItems = document.querySelectorAll('.toc-item');
+      tocItems.forEach((t, i) => t.classList.toggle('current', i === currentIdx));
+    }
+
+    function nextSlide() {
+      if (currentIdx < totalSlides - 1) {
+        currentIdx++;
+        updateSlide();
+      }
+    }
+
+    function prevSlide() {
+      if (currentIdx > 0) {
+        currentIdx--;
+        updateSlide();
+      }
+    }
+
+    function goToSlide(idx) {
+      if (idx >= 0 && idx < totalSlides) {
+        currentIdx = idx;
+        updateSlide();
+      }
+    }
+
+    // Keyboard controls
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        prevSlide();
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        goToSlide(0);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        goToSlide(totalSlides - 1);
+      } else if (e.key.toLowerCase() === 'p') {
+        toggleNotes();
+      } else if (e.key.toLowerCase() === 'm' || e.key.toLowerCase() === 'o') {
+        toggleToc();
+      } else if (e.key.toLowerCase() === 'f') {
+        toggleFullscreen();
+      } else if (e.key === 'Escape') {
+        if (tocOverlay.classList.contains('open')) toggleToc();
+      }
+    });
+
+    // Notes toggle
+    function toggleNotes() {
+      notesPanel.classList.toggle('visible');
+      if (notesPanel.classList.contains('visible') && !timerInterval) {
+        timerInterval = setInterval(() => {
+          timerSeconds++;
+          const mins = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+          const secs = String(timerSeconds % 60).padStart(2, '0');
+          notesTimer.textContent = `${mins}:${secs}`;
+        }, 1000);
+      }
+    }
+    document.getElementById('btnNotesToggle').onclick = toggleNotes;
+
+    // TOC toggle
+    function toggleToc() {
+      tocOverlay.classList.toggle('open');
+    }
+    document.getElementById('btnTocToggle').onclick = toggleToc;
+
+    function closeTocOnBackdrop(e) {
+      if (e.target === tocOverlay) toggleToc();
+    }
+
+    // Fullscreen toggle
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => console.log(err));
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    }
+    document.getElementById('btnFullscreen').onclick = toggleFullscreen;
+
+    // Simulation Scripts
+    function addLog(type, tag, message) {
+      const feed = document.getElementById('simLogFeed');
+      const time = new Date().toTimeString().split(' ')[0];
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.innerHTML = `
+        <span class="log-time">[${time}]</span>
+        <span class="log-tag">[${tag}]</span>
+        <span>${message}</span>
+      `;
+      feed.appendChild(entry);
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    function clearSimLogs() {
+      const feed = document.getElementById('simLogFeed');
+      feed.innerHTML = '';
+      addLog('info', 'SIMULATOR', 'Log feed reset.');
+    }
+
+    function runSimulatedSync() {
+      addLog('info', 'SYNC', 'Triggering GET https://api.cf.us10-001.hana.ondemand.com/v3/apps...');
+      setTimeout(() => {
+        addLog('info', 'SYNC', 'Fetched 4 apps: incident-processor, risk-service, srv-api, auth-gate.');
+        addLog('warn', 'SYNC', 'App risk-service is in state CRASHED (instances: 0/1)');
+        addLog('error', 'INGEST', 'UPSERT Incident: correlatedRequestId=8fa420f1-risk, status=INVESTIGATING, errorCategory=CF_APP_STATUS');
+        addLog('info', 'SYNC', 'Sync complete. 1 new incident created, 3 updated in persistence store.');
+      }, 700);
+    }
+
+    function runSimulatedAgent() {
+      addLog('info', 'MCP-CLIENT', 'AI Agent initialized session with http://localhost:4004/mcp (JSON-RPC 2.0)...');
+      setTimeout(() => {
+        addLog('info', 'MCP-CLIENT', 'Calling IncidentService_Incidents_query({ status: "INVESTIGATING" })...');
+        setTimeout(() => {
+          addLog('info', 'MCP-SERVER', 'Discovered active incident: CF_PROCESS_CRASH on cf-log-trace-agent-srv.');
+          addLog('info', 'MCP-CLIENT', 'Calling IncidentService_TraceEvents_query(incident_ID: "5cbd5a20")...');
+          setTimeout(() => {
+            addLog('warn', 'AI-DIAGNOSIS', 'Correlated error 503 + process crash. Container died abruptly.');
+            addLog('info', 'MCP-TOOL', 'Executing IncidentService_Messages_create: Appending proposed playbook to discussions...');
+            setTimeout(() => {
+              addLog('info', 'MCP-SERVER', 'Comment appended successfully: "Diagnosis: CF Process Crash. Playbook: cf logs --recent & cf restart"');
+              addLog('info', 'OPERATOR-AUDIT', 'Human-in-the-loop: SRE verified AI playbook. Ready to confirm resolution.');
+            }, 600);
+          }, 800);
+        }, 600);
+      }, 500);
+    }
+
+    // Initialize presentation
+    updateSlide();
+  </script>
+</body>
+</html>

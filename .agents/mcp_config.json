@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cf-log-trace-agent-mcp": {
+      "command": "node",
+      "args": ["scripts/mcp-stdio-bridge.js"]
+    }
+  }
+}

@@ -28,7 +28,8 @@
     "typescript": "^5.0.0"
   },
   "scripts": {
-    "start": "cds-serve"
+    "start": "cds-serve",
+    "task:resolve": "node scripts/execute-cf-resolution.js"
   },
   "cds": {
     "requires": {},

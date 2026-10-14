@@ -21,7 +21,7 @@ The `cf-log-trace-agent` service connects to SAP BTP Cloud Foundry APIs (`/v3/ap
    - `applicationId`: Cloud Foundry Application GUID (`app.guid`) or audit event target identifier.
    - `correlatedRequestId`: Correlated request ID or audit event GUID (`event.guid`).
    - `targetSpace`: Cloud Foundry space GUID or space name (e.g., `dev`, `prod`).
-   - `status`: Incident lifecycle status (`OPEN`, `INVESTIGATING`, `RESOLVED`, `CLOSED`).
+   - `status`: Incident lifecycle status (`OPEN`, `INVESTIGATING`, `Resolution added by Agent`, `RESOLVED`, `CLOSED`).
    - `errorCategory`: Categorized taxonomy (`CF_APP_CRASH`, `CF_PROCESS_CRASH`, `CF_ROUTE_MUTATION`, `CF_RESOURCE_DELETED`, `CF_APP_RESTAGE`, `CF_APP_STATUS`, `CF_AUDIT_LOG`).
    - `rootCauseStatement`: Human- and AI-readable explanation of the detected failure.
    - `remediationAction`: Prescriptive, actionable remediation command sequence.
@@ -36,6 +36,33 @@ The `cf-log-trace-agent` service connects to SAP BTP Cloud Foundry APIs (`/v3/ap
 
 4. **`Messages` (`: cuid, managed`)**:
    - Chronological audit notes, agent diagnostic logs, and operator collaboration comments.
+
+---
+
+## 🛡️ Autonomous AI Policy: Strict MCP Server Usage & Lifecycle
+
+AI agents interacting with `cf-log-trace-agent` **MUST STRICTLY** use the Model Context Protocol (MCP) server running on `http://localhost:4004/mcp` (or IDE configured MCP tool integration) to inspect telemetry, retrieve data, and execute state changes.
+
+### Mandatory Rules for AI Agents:
+1. **Strictly Use MCP Server Tools to Get Data**:
+   - Query Incidents: `IncidentService_Incidents_query` (with filter arguments e.g. `{ field: 'status', op: 'eq', value: 'OPEN' }`)
+   - Query Traces: `IncidentService_TraceEvents_query` (e.g. `{ field: 'incident_ID', op: 'eq', value: '<UUID>' }`)
+   - Query Impacted Services: `IncidentService_ImpactedServices_query`
+   - Query Discussions: `IncidentService_Messages_query`
+   - Do NOT bypass the MCP server with direct database hacks or raw unverified curl calls.
+
+2. **Strictly Use MCP Server Tools to Change Data**:
+   - Add Resolution Discussion/Message: `IncidentService_Messages_create`
+   - Update Incident Header / Status: `IncidentService_Incidents_update`
+   - Execute Bound Autonomous Action: `IncidentService_executeResolutionTask` or `executeResolutionTaskForIncident`
+
+3. **Status Transition Rule ("Resolution added by Agent")**:
+   - Whenever an AI agent formulates and adds a resolution comment or message to an incident, the incident status **MUST** transition to:
+     ```
+     Resolution added by Agent
+     ```
+   - This transition is enforced at runtime by CAP in `srv/incidents.ts` upon `Messages` creation (`after('CREATE', 'Messages')`), and explicitly verified via `IncidentService_Incidents_query`.
+   - Criticality in SAP Fiori Elements is mapped to `3` (Positive / Green) for `Resolution added by Agent`.
 
 ---
 
@@ -294,6 +321,40 @@ AI Agents consume this service through the **Model Context Protocol (MCP)** tool
    - Parameters:
      - `incident_ID`: `<incident_uuid>`
      - `text`: `Autonomous AI diagnosis completed. Identified OOM (Exit 137). Remediation action posted.`
+
+---
+
+## ⚡ Executing Resolution Task when Prompted (Autonomous MCP & Code Execution)
+
+When prompted by the user to add messages for resolution of errors or warnings in Cloud Foundry (e.g. *"add the task to add messages for resolution of error/warning"*, *"remediate CF incident"*, *"resolve container crash"*, *"diagnose warning"*):
+
+### 1. Via Model Context Protocol (MCP) Tool
+Call the bound action `executeResolutionTask` (or unbound `executeResolutionTaskForIncident`):
+```json
+{
+  "name": "executeResolutionTask",
+  "arguments": {
+    "ID": "<incident_uuid>",
+    "prompt": "<optional_user_intent_or_instructions>"
+  }
+}
+```
+
+### 2. Via Code & Command Line Task
+Run the dedicated resolution task runner:
+```bash
+npm run task:resolve
+# or with specific incident UUID and prompt:
+node scripts/execute-cf-resolution.js <incident_uuid> "Scale memory and verify routes"
+```
+
+### 3. Via Skill Helper Script
+```bash
+node .agents/skills/cf-log-trace-agent/scripts/remediate_cf_incident.js <incident_uuid>
+```
+
+### 4. Via SAP Fiori Elements UI
+Click the **Execute Resolution Task (AI)** button on the List Report table toolbar or Object Page header.
 
 ---
 

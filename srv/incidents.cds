@@ -11,7 +11,72 @@ service IncidentService {
         Updatable  : true,
         Deletable  : true
     }
-    entity Incidents        as projection on sch.Incidents;
+    entity Incidents        as projection on sch.Incidents actions {
+        @mcp: {
+            name       : 'executeResolutionTask',
+            description: 'Analyzes Cloud Foundry incident error and warning telemetry using the skill catalog, generates prescriptive remediation steps, and appends resolution message to discussions',
+            tool       : true
+        }
+        @Common.SideEffects : {
+            TargetEntities : [
+                messages,
+                $self
+            ],
+            TargetProperties : [
+                'remediationAction',
+                'status'
+            ]
+        }
+        action executeResolutionTask(
+            @title: 'Prompt / Resolution Intent (Optional)'
+            prompt : String
+        ) returns Incidents;
+
+        @mcp: {
+            name       : 'suggestResolution',
+            description: 'Alias for executeResolutionTask - suggests and adds resolution message to incident discussions',
+            tool       : true
+        }
+        @Common.SideEffects : {
+            TargetEntities : [
+                messages,
+                $self
+            ],
+            TargetProperties : [
+                'remediationAction',
+                'status'
+            ]
+        }
+        action suggestResolution(
+            @title: 'Prompt / Resolution Intent (Optional)'
+            prompt : String
+        ) returns Incidents;
+    };
+
+    @mcp: {
+        name       : 'executeResolutionTaskForIncident',
+        description: 'Diagnoses Cloud Foundry error and warning telemetry for a specified incident ID, generates prescriptive resolution playbook from skills, and appends it to messages composition',
+        tool       : true
+    }
+    action executeResolutionTaskForIncident(
+        @title: 'Incident UUID'
+        incident_ID : UUID not null,
+        @title: 'Prompt / Resolution Intent (Optional)'
+        prompt      : String
+    ) returns Incidents;
+
+    @mcp: {
+        name       : 'suggestResolutionForIncident',
+        description: 'Alias for executeResolutionTaskForIncident',
+        tool       : true
+    }
+    action suggestResolutionForIncident(
+        @title: 'Incident UUID'
+        incident_ID : UUID not null,
+        @title: 'Prompt / Resolution Intent (Optional)'
+        prompt      : String
+    ) returns Incidents;
+
 
     @mcp: {
         name       : 'impactedServices',

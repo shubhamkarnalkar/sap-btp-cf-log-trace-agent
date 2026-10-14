@@ -768,6 +768,9 @@
       <div class="brand-subtitle">CAP + MCP Intelligent Incident Ops</div>
     </div>
     <div class="controls-group">
+      <a href="/" class="btn-icon" title="Open Service Cockpit & Endpoints Dashboard" style="text-decoration: none;">
+        <span>🏠</span> Cockpit
+      </a>
       <button class="btn-icon" id="btnNotesToggle" title="Toggle Speaker Notes (P)">
         <span>📝</span> Notes
       </button>
@@ -1112,7 +1115,7 @@
       </section>
 
       <!-- SLIDE 8: MODEL CONTEXT PROTOCOL (MCP) INTEGRATION -->
-      <section class="slide" data-title="Model Context Protocol" data-notes="Now to the breakthrough AI capability: the Model Context Protocol (MCP). By configuring @cap-js/mcp and @gavdi/cap-mcp with wrap_entities_to_actions, CAP automatically turns our CDS entities into AI tools. An AI agent gets a rich schema description and can invoke query, get, create, update, and delete tools over JSON-RPC.">
+      <section class="slide" data-title="Model Context Protocol" data-notes="Now to the breakthrough AI capability: the Model Context Protocol (MCP). By configuring @cap-js/mcp and @gavdi/cap-mcp with wrap_entities_to_actions, CAP automatically turns our CDS entities into AI tools. An AI agent connects directly to http://localhost:4004/mcp over JSON-RPC 2.0 to query, analyze, and post comments without custom code.">
         <div class="slide-badge">07 // AI Protocol</div>
         <h2 class="slide-title">Model Context Protocol <span>(MCP) Integration</span></h2>
         <p class="slide-subtitle">Exposing SAP CAP services as standard tool definitions for LLMs and AI Agents.</p>
@@ -1120,44 +1123,45 @@
         <div class="grid-2">
           <div class="code-container">
             <div class="code-header">
-              <span>package.json (MCP Configuration)</span>
+              <span>.agents/mcp_config.json & package.json</span>
               <div class="code-dots">
                 <div class="code-dot red"></div>
                 <div class="code-dot yellow"></div>
                 <div class="code-dot green"></div>
               </div>
             </div>
-            <pre><code><span class="str">"cds"</span>: {
-  <span class="str">"mcp"</span>: {
-    <span class="str">"name"</span>: <span class="str">"cf-log-trace-agent-mcp"</span>,
-    <span class="str">"wrap_entities_to_actions"</span>: <span class="num">true</span>,
-    <span class="str">"wrap_entity_modes"</span>: [
-      <span class="str">"query"</span>, <span class="str">"get"</span>, <span class="str">"create"</span>, <span class="str">"update"</span>, <span class="str">"delete"</span>
-    ],
-    <span class="str">"instructions"</span>: <span class="str">"MCP Server for Cloud Foundry Log & Trace Incident Agent. Enables querying, updating, and remediating incidents."</span>
+            <pre><code><span class="str">"mcpServers"</span>: {
+  <span class="str">"cf-log-trace-agent-mcp"</span>: {
+    <span class="str">"serverUrl"</span>: <span class="str">"http://localhost:4004/mcp"</span>
   }
-}</code></pre>
+}
+<span class="cmt">// Health & Diagnostic Endpoint:</span>
+<span class="cmt">// GET http://localhost:4004/mcp/health -> {"status":"UP"}</span></code></pre>
+            <div style="padding: 0.75rem 1rem; background: rgba(0, 112, 242, 0.08); border-top: 1px solid var(--border-color); font-size: 0.78rem; color: #93c5fd; display: flex; justify-content: space-between;">
+              <span>Protocol: JSON-RPC 2.0 / SSE</span>
+              <span>Session: mcp-session-id</span>
+            </div>
           </div>
 
           <div class="glass-card">
             <h3 class="card-title" style="color: #c084fc;">Auto-Generated AI Toolset</h3>
-            <p class="card-desc" style="margin-bottom: 1rem;">The CAP runtime exposes these tools at <code>http://localhost:4004/mcp</code>:</p>
-            <div style="display: flex; flex-direction: column; gap: 0.65rem;">
+            <p class="card-desc" style="margin-bottom: 0.85rem;">Exposed at <code>http://localhost:4004/mcp</code> with health monitor at <code>/mcp/health</code>:</p>
+            <div style="display: flex; flex-direction: column; gap: 0.55rem;">
               <div class="stat-pill" style="justify-content: flex-start; width: 100%;">
-                <span class="num" style="font-size: 0.85rem;">🛠️</span>
-                <code>incidents_query</code>: Filter & inspect incidents
+                <span class="num" style="font-size: 0.85rem;">🔍</span>
+                <code>IncidentService_Incidents_query</code>: Filter & inspect open incidents
               </div>
               <div class="stat-pill" style="justify-content: flex-start; width: 100%;">
-                <span class="num" style="font-size: 0.85rem;">🛠️</span>
-                <code>traceEvents_query</code>: Drill down into RTR & CELL logs
+                <span class="num" style="font-size: 0.85rem;">📊</span>
+                <code>IncidentService_TraceEvents_query</code>: Inspect router & container logs
               </div>
               <div class="stat-pill" style="justify-content: flex-start; width: 100%;">
-                <span class="num" style="font-size: 0.85rem;">🛠️</span>
-                <code>impactedServices_query</code>: Identify failing microservice pods
+                <span class="num" style="font-size: 0.85rem;">💬</span>
+                <code>IncidentService_Messages_create</code>: Append AI remediation comment
               </div>
               <div class="stat-pill" style="justify-content: flex-start; width: 100%;">
-                <span class="num" style="font-size: 0.85rem;">🛠️</span>
-                <code>incidents_update</code>: Update root cause & remediation actions
+                <span class="num" style="font-size: 0.85rem;">⚡</span>
+                <code>IncidentService_Incidents_update</code>: Update status & remediation action
               </div>
             </div>
           </div>
@@ -1165,48 +1169,50 @@
       </section>
 
       <!-- SLIDE 9: AUTONOMOUS AI AGENT WORKFLOW -->
-      <section class="slide" data-title="Autonomous Agent Flow" data-notes="Let's trace how an autonomous AI agent uses this system in practice. Step 1: The agent is tasked with checking system health. It calls incidents_query. Step 2: It detects an INVESTIGATING incident on an app. Step 3: It queries traceEvents to inspect error codes. Step 4: It identifies the root cause and updates the incident with actionable remediation steps.">
+      <section class="slide" data-title="Autonomous Agent Flow" data-notes="Here is our recommended Human-in-the-Loop AI remediation workflow. Instead of blind autonomous mutation, the AI Agent reasons over the incident telemetry, formulates a prescriptive resolution playbook, and posts it as a discussion comment. The SRE engineer reviews the proposed steps and authorizes the resolution update.">
         <div class="slide-badge">08 // Agent In Action</div>
-        <h2 class="slide-title">Autonomous <span>SRE Incident Remediation</span></h2>
-        <p class="slide-subtitle">How Claude, Gemini, or custom Antigravity agents diagnose issues without human bottleneck.</p>
+        <h2 class="slide-title">Autonomous <span>SRE Incident Remediation (Human-in-the-Loop)</span></h2>
+        <p class="slide-subtitle">How Claude, Gemini, or Antigravity agents diagnose issues over MCP and propose playbooks for operator verification.</p>
 
         <div class="grid-4" style="margin-top: 1rem;">
           <div class="glass-card" style="padding: 1.25rem;">
             <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-cyan); margin-bottom: 0.5rem;">STEP 01</div>
             <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔍</div>
-            <h4 style="font-size: 1rem; margin-bottom: 0.35rem; color: #fff;">Detect</h4>
-            <p style="font-size: 0.82rem; color: var(--text-muted);">Agent queries `/mcp` tools; discovers an incident with status <code>INVESTIGATING</code> and error <code>CF_APP_STATUS</code>.</p>
+            <h4 style="font-size: 1rem; margin-bottom: 0.35rem; color: #fff;">Detect (MCP)</h4>
+            <p style="font-size: 0.82rem; color: var(--text-muted);">Agent queries <code>IncidentService_Incidents_query</code>; discovers active incident in <code>INVESTIGATING</code> state.</p>
           </div>
 
           <div class="glass-card" style="padding: 1.25rem;">
             <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-purple); margin-bottom: 0.5rem;">STEP 02</div>
             <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🔬</div>
             <h4 style="font-size: 1rem; margin-bottom: 0.35rem; color: #fff;">Correlate</h4>
-            <p style="font-size: 0.82rem; color: var(--text-muted);">Agent calls <code>traceEvents_query</code> filtering by correlated request ID to extract router 503 traces.</p>
+            <p style="font-size: 0.82rem; color: var(--text-muted);">Agent calls <code>IncidentService_TraceEvents_query</code> to extract container exit codes and Gorouter 502/503 traces.</p>
           </div>
 
           <div class="glass-card" style="padding: 1.25rem;">
             <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-amber); margin-bottom: 0.5rem;">STEP 03</div>
             <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">💡</div>
-            <h4 style="font-size: 1rem; margin-bottom: 0.35rem; color: #fff;">Analyze</h4>
-            <p style="font-size: 0.82rem; color: var(--text-muted);">Agent links crash to a memory quota exhaustion or unmapped route based on audit logs.</p>
+            <h4 style="font-size: 1rem; margin-bottom: 0.35rem; color: #fff;">Diagnose</h4>
+            <p style="font-size: 0.82rem; color: var(--text-muted);">AI matches failure signature (OOM Exit 137, process crash, or route drop) using the CF Error Resolution Catalog.</p>
           </div>
 
           <div class="glass-card" style="padding: 1.25rem;">
             <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-emerald); margin-bottom: 0.5rem;">STEP 04</div>
-            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🛡️</div>
-            <h4 style="font-size: 1rem; margin-bottom: 0.35rem; color: #fff;">Remediate</h4>
-            <p style="font-size: 0.82rem; color: var(--text-muted);">Agent updates <code>remediationAction</code>, logs diagnostic notes to <code>messages</code>, and alerts the SRE team.</p>
+            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">💬</div>
+            <h4 style="font-size: 1rem; margin-bottom: 0.35rem; color: #fff;">Propose Comment</h4>
+            <p style="font-size: 0.82rem; color: var(--text-muted);">Agent calls <code>IncidentService_Messages_create</code> to log prescriptive CLI playbook for operator review.</p>
           </div>
         </div>
 
-        <div class="interactive-box" style="margin-top: 1.5rem; padding: 1rem 1.25rem;">
+        <div class="interactive-box" style="margin-top: 1.5rem; padding: 1rem 1.25rem; border: 1px solid rgba(139, 92, 246, 0.35);">
           <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="color: #38bdf8; font-weight: 700;">Agent Prompt Example:</span>
-            <span style="color: var(--text-dim); font-size: 0.78rem;">JSON-RPC Tool Call</span>
+            <span style="color: #c084fc; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+              <span>🤖</span> Recommended AI Agent Prompt:
+            </span>
+            <span style="color: var(--accent-emerald); font-size: 0.78rem; font-weight: 600;">✓ Human-in-the-Loop Safe</span>
           </div>
-          <div style="margin-top: 0.5rem; color: #94a3b8; font-size: 0.82rem;">
-            <code>"Call tool incidents_update with ID: 'cf-app-guid-101', status: 'RESOLVED', remediationAction: 'Scaled container memory to 1024M via CF CLI'."</code>
+          <div style="margin-top: 0.65rem; color: #e2e8f0; font-size: 0.85rem; font-family: var(--font-mono); background: rgba(0,0,0,0.3); padding: 0.75rem 1rem; border-radius: 8px; border-left: 3px solid var(--accent-cyan); line-height: 1.5;">
+            "Diagnose the next open incident strictly using the MCP server. Analyze its telemetry traces, propose a prescriptive resolution playbook as a comment, and verify the status transitions to 'Resolution added by Agent'."
           </div>
         </div>
       </section>
@@ -1238,6 +1244,14 @@
                 <div><strong>Full LineItem Controls:</strong> Formatted tables with GUID columns, instance IDs, and router component indicators (`RTR`, `CELL`, `APP`).</div>
               </li>
             </ul>
+            <div style="margin-top: 1.25rem; display: flex; gap: 0.65rem; flex-wrap: wrap;">
+              <a href="/$fiori-preview/IncidentService/Incidents#preview-app" target="_blank" class="btn-icon btn-primary" style="padding: 0.6rem 1.25rem; font-size: 0.88rem; text-decoration: none; display: inline-flex;">
+                <span>🎨</span> Open Fiori Incidents Preview ↗
+              </a>
+              <a href="/$fiori-preview/IncidentService/TraceEvents#preview-app" target="_blank" class="btn-icon" style="padding: 0.6rem 1rem; font-size: 0.85rem; text-decoration: none; display: inline-flex;">
+                <span>📊</span> Traces Preview
+              </a>
+            </div>
           </div>
 
           <div class="code-container">
@@ -1625,16 +1639,22 @@
     }
 
     function runSimulatedAgent() {
-      addLog('info', 'MCP-CLIENT', 'AI Agent sending JSON-RPC request to /mcp (tool: incidents_query)...');
+      addLog('info', 'MCP-CLIENT', 'AI Agent initialized session with http://localhost:4004/mcp (JSON-RPC 2.0)...');
       setTimeout(() => {
-        addLog('info', 'MCP-SERVER', 'Tool executed: returned 1 incident in INVESTIGATING state.');
-        addLog('info', 'MCP-CLIENT', 'AI Agent calling traceEvents_query(incidentId: 8fa420f1-risk)...');
+        addLog('info', 'MCP-CLIENT', 'Calling IncidentService_Incidents_query({ status: "INVESTIGATING" })...');
         setTimeout(() => {
-          addLog('error', 'AI-ANALYSIS', 'Hypothesis confirmed: Container exit 137 (OOM - Out Of Memory)');
-          addLog('info', 'MCP-CLIENT', 'AI Agent calling incidents_update(ID: 8fa420f1-risk, remediationAction: "Increase memory from 256M to 1024M and cf restage")...');
-          addLog('info', 'MCP-SERVER', 'Incident 8fa420f1-risk successfully updated by AI Agent.');
-        }, 900);
-      }, 700);
+          addLog('info', 'MCP-SERVER', 'Discovered active incident: CF_PROCESS_CRASH on cf-log-trace-agent-srv.');
+          addLog('info', 'MCP-CLIENT', 'Calling IncidentService_TraceEvents_query(incident_ID: "5cbd5a20")...');
+          setTimeout(() => {
+            addLog('warn', 'AI-DIAGNOSIS', 'Correlated error 503 + process crash. Container died abruptly.');
+            addLog('info', 'MCP-TOOL', 'Executing IncidentService_Messages_create: Appending proposed playbook to discussions...');
+            setTimeout(() => {
+              addLog('info', 'MCP-SERVER', 'Comment appended successfully: "Diagnosis: CF Process Crash. Playbook: cf logs --recent & cf restart"');
+              addLog('info', 'OPERATOR-AUDIT', 'Human-in-the-loop: SRE verified AI playbook. Ready to confirm resolution.');
+            }, 600);
+          }, 800);
+        }, 600);
+      }, 500);
     }
 
     // Initialize presentation

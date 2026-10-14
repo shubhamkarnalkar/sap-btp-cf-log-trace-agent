@@ -316,6 +316,51 @@ An interactive slide deck and speaker runbook are included in this repository:
   npm install --legacy-peer-deps
   ```
 
+## 🤖 Suggest a Resolution Using AI Agent (MCP Server)
+
+The service exposes native **Model Context Protocol (MCP)** endpoints for AI pair programmers (Claude, Gemini, Antigravity) to autonomously diagnose Cloud Foundry container failures.
+
+### Endpoints
+* **MCP Primary Gateway**: `http://localhost:4004/mcp` (Protocol: JSON-RPC 2.0 over HTTP / SSE)
+* **MCP Health Monitor**: `http://localhost:4004/mcp/health` (Returns `{"status":"UP"}`)
+* **IDE Configuration**: Automatically registered via [`.agents/mcp_config.json`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/mcp_config.json)
+
+### Human-in-the-Loop Prompts
+To ensure safety in production environments, use the following prompts to have the AI agent inspect telemetry and propose prescriptive playbooks strictly over the MCP protocol:
+
+#### 1. Standard Autonomous Prompt (Next Open Incident)
+```text
+Diagnose the next open incident strictly using the MCP server. Analyze its telemetry traces, propose a prescriptive resolution playbook as a comment, and verify the status transitions to "Resolution added by Agent" for operator review.
+```
+
+#### 2. Explicit SRE Production Prompt (Full Protocol Specification)
+Use this prompt if you want zero ambiguity about which MCP tools to invoke:
+```text
+Perform an autonomous diagnosis for the next active Cloud Foundry incident following these strict requirements:
+1. Use ONLY the MCP server tools (IncidentService_Incidents_query, IncidentService_TraceEvents_query, IncidentService_ImpactedServices_query) to fetch telemetry.
+2. Formulate a prescriptive remediation playbook (exit codes, cf logs, cf events, scaling, and restart steps) using the cf-log-trace-agent skill catalog.
+3. Post the playbook as a discussion comment using the IncidentService_Messages_create MCP tool.
+4. Verify that the incident's status automatically transitions to "Resolution added by Agent" upon your message creation.
+```
+
+#### 3. Explicit SRE Production Prompt (Targeted Incident UUID)
+Use this prompt if you want zero ambiguity about which MCP tools to invoke for a specific incident:
+```text
+Perform an autonomous diagnosis for incident 099ea6eb-c7c0-4b50-8fb0-ca5412c0f538 following these strict requirements:
+1. Use ONLY the MCP server tools (IncidentService_Incidents_query with filter { field: 'ID', op: 'eq', value: '099ea6eb-c7c0-4b50-8fb0-ca5412c0f538' }, IncidentService_TraceEvents_query, IncidentService_ImpactedServices_query) to fetch telemetry.
+2. Formulate a prescriptive remediation playbook (exit codes, cf logs, cf events, scaling, and restart steps) using the cf-log-trace-agent skill catalog.
+3. Post the playbook as a discussion comment using the IncidentService_Messages_create MCP tool.
+4. Verify that the incident's status automatically transitions to "Resolution added by Agent" upon your message creation.
+```
+
+### Protocol Flow
+1. **Discover**: Agent queries `IncidentService_Incidents_query` strictly via MCP for active incidents.
+2. **Inspect**: Agent queries `IncidentService_TraceEvents_query` and `IncidentService_ImpactedServices_query` via MCP.
+3. **Reason**: Agent consults the Cloud Foundry Error Resolution Catalog (`cf-log-trace-agent` skill) to formulate a prescriptive playbook.
+4. **Propose**: Agent calls `IncidentService_Messages_create` via MCP to append the playbook to discussions.
+5. **Auto-Transition**: The service automatically transitions incident status to `"Resolution added by Agent"`.
+6. **Verify & Close**: SRE operator inspects the playbook and confirms resolution.
+
 ---
 
 ## 📄 License & Maintainers
