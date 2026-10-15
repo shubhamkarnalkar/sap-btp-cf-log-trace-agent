@@ -113,6 +113,14 @@ service IncidentService {
         Deletable  : true
     }
     entity Messages         as projection on sch.Messages;
+
+    @readonly
+    @mcp: {
+        name       : 'statuses',
+        description: 'Incident lifecycle status codes, descriptions, and criticalities',
+        resource   : true
+    }
+    entity Statuses         as projection on sch.Statuses;
 }
 
 // Annotate entity wrapper tools for MCP AI agent CRUD operations
@@ -138,6 +146,12 @@ annotate IncidentService.Messages with @mcp.wrap: {
     tools: true,
     modes: ['query', 'get', 'create', 'update', 'delete'],
     hint: 'Use to create, read, update, or delete incident log messages and resolution notes'
+};
+
+annotate IncidentService.Statuses with @mcp.wrap: {
+    tools: true,
+    modes: ['query', 'get'],
+    hint: 'Use to query available incident status codes and descriptions'
 };
 
 using from '../app/annotations';

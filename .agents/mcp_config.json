@@ -2,7 +2,13 @@
   "mcpServers": {
     "cf-log-trace-agent-mcp": {
       "command": "node",
-      "args": ["scripts/mcp-stdio-bridge.js"]
+      "args": [
+        "c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/scripts/mcp-stdio-bridge.js",
+        "http://localhost:4004/mcp"
+      ],
+      "env": {
+        "MCP_URL": "http://localhost:4004/mcp"
+      }
     }
   }
 }

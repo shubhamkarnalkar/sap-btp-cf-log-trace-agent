@@ -17,8 +17,12 @@ Whenever the user prompts to:
    - Call MCP tool `IncidentService_Incidents_query` (with filter `status eq 'INVESTIGATING' or status eq 'OPEN'`) to discover the active incident.
 2. **Inspect Telemetry via MCP**:
    - Call MCP tool `IncidentService_TraceEvents_query` using `incident_ID` to inspect runtime logs, exit codes, component tags, and status codes.
-3. **Formulate Prescriptive Resolution (AI Reasoning)**:
-   - Reason through the telemetry using the Cloud Foundry Error Resolution Catalog (OOM Exit 137, Gorouter 502/503/504, Process Crash Exit 1/255, Route Mutation, Staging quotas, or Account Lockout).
+3. **Formulate Prescriptive Resolution (AI Reasoning & Specialized Skills)**:
+   - Reason through the telemetry using the specialized Cloud Foundry skills:
+     - [`cf-incident-resolution`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills/cf-incident-resolution/SKILL.md): Container crashes (Exit 137 OOM, Exit 1, Exit 255), Gorouter 502/503/504, health check flapping, and staging failures.
+     - [`cf-service-connectivity`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills/cf-service-connectivity/SKILL.md): SAP HANA Cloud hibernation, XSUAA 401s, Destination proxying, and Application Security Groups (ASG) egress.
+     - [`cf-performance-scaling`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills/cf-performance-scaling/SKILL.md): Node.js / JVM memory calculations, Diego CPU starvation, disk quotas, and AutoScaler policies.
+     - [`cf-log-trace-agent`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills/cf-log-trace-agent/SKILL.md): Core CAP incident entity schema and MCP lifecycle.
    - Formulate a prescriptive diagnostic summary and concrete CLI remediation playbook.
 4. **Persist Resolution via MCP Server**:
    - Add the resolution message to discussions using MCP tool `IncidentService_Messages_create`.

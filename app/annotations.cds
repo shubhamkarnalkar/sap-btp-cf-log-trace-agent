@@ -6,7 +6,24 @@ using IncidentService as service from '../srv/incidents';
 annotate service.Incidents with {
     ID                   @title: 'Incident ID'           @Common.Label: 'Incident ID';
     applicationId        @title: 'Application ID'        @Common.Label: 'Application ID';
-    status               @title: 'Status'                @Common.Label: 'Status';
+    status               @title: 'Status'                @Common.Label: 'Status'
+                         @Common.ValueListWithFixedValues: true
+                         @Common.ValueList: {
+                             $Type          : 'Common.ValueListType',
+                             Label          : 'Status',
+                             CollectionPath : 'Statuses',
+                             Parameters     : [
+                                 {
+                                     $Type             : 'Common.ValueListParameterInOut',
+                                     LocalDataProperty : status,
+                                     ValueListProperty : 'code',
+                                 },
+                                 {
+                                     $Type             : 'Common.ValueListParameterDisplayOnly',
+                                     ValueListProperty : 'name',
+                                 }
+                             ]
+                         };
     errorCategory        @title: 'Error Category'        @Common.Label: 'Error Category';
     targetSpace          @title: 'Target Space'          @Common.Label: 'Target Space';
     createdAt            @title: 'Created At'            @Common.Label: 'Created At'  @UI.HiddenFilter: false;
@@ -374,4 +391,55 @@ annotate service.Messages with @(
             Label: 'Created By',
         }
     ]}
+);
+
+// ============================================================================
+// Statuses UI & Value Help Annotations
+// ============================================================================
+annotate service.Statuses with {
+    code        @title: 'Status Code'  @Common.Label: 'Status Code'  @Common.Text: name  @Common.TextArrangement: #TextFirst;
+    name        @title: 'Status Name'  @Common.Label: 'Status Name';
+    criticality @title: 'Criticality'  @Common.Label: 'Criticality';
+};
+
+annotate service.Statuses with @(
+    UI.HeaderInfo     : {
+        TypeName       : 'Status',
+        TypeNamePlural : 'Statuses',
+        Title          : {
+            $Type : 'UI.DataField',
+            Value : name,
+        },
+        Description    : {
+            $Type : 'UI.DataField',
+            Value : code,
+        }
+    },
+    UI.Identification : [
+        {
+            $Type : 'UI.DataField',
+            Value : code,
+        },
+        {
+            $Type : 'UI.DataField',
+            Value : name,
+        }
+    ],
+    UI.LineItem       : [
+        {
+            $Type : 'UI.DataField',
+            Value : code,
+            Label : 'Status Code',
+        },
+        {
+            $Type : 'UI.DataField',
+            Value : name,
+            Label : 'Status Name',
+        },
+        {
+            $Type : 'UI.DataField',
+            Value : criticality,
+            Label : 'Criticality',
+        }
+    ]
 );

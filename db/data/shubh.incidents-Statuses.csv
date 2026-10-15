@@ -1,0 +1,6 @@
+code,name,criticality
+OPEN,Open,1
+INVESTIGATING,Investigating,2
+Resolution added by Agent,Resolution added by Agent,3
+RESOLVED,Resolved,3
+CLOSED,Closed,0

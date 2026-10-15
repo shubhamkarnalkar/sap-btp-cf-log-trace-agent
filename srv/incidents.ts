@@ -146,7 +146,7 @@ async function getCloudFoundryToken(): Promise<string | null> {
 }
 
 export default cds.service.impl(async function (this: cds.Service) {
-    const { Incidents, ImpactedServices, TraceEvents, Messages } = this.entities;
+    const { Incidents, ImpactedServices, TraceEvents, Messages, Statuses } = this.entities;
     let lastSyncTime = 0;
     let isSyncing = false;
     const SYNC_INTERVAL_MS = 60 * 1000; // Sync at most once per minute
@@ -232,9 +232,12 @@ export default cds.service.impl(async function (this: cds.Service) {
                     if (!existing) {
                         await tx.run(INSERT.into(Incidents).entries(incidentRecord));
                     } else {
+                        const preservedStatus = (existing.status === 'Resolution added by Agent' || existing.status === 'RESOLVED')
+                            ? existing.status
+                            : incidentRecord.status;
                         await tx.run(UPDATE(Incidents).set({
                             applicationId: incidentRecord.applicationId,
-                            status: incidentRecord.status,
+                            status: preservedStatus,
                             errorCategory: incidentRecord.errorCategory,
                             targetSpace: incidentRecord.targetSpace,
                             rootCauseStatement: incidentRecord.rootCauseStatement,
@@ -311,9 +314,12 @@ export default cds.service.impl(async function (this: cds.Service) {
                     if (!existing) {
                         await tx.run(INSERT.into(Incidents).entries(incidentRecord));
                     } else {
+                        const preservedStatus = (existing.status === 'Resolution added by Agent' || existing.status === 'RESOLVED')
+                            ? existing.status
+                            : incidentRecord.status;
                         await tx.run(UPDATE(Incidents).set({
                             applicationId: incidentRecord.applicationId,
-                            status: incidentRecord.status,
+                            status: preservedStatus,
                             errorCategory: incidentRecord.errorCategory,
                             targetSpace: incidentRecord.targetSpace,
                             rootCauseStatement: incidentRecord.rootCauseStatement,
@@ -340,6 +346,27 @@ export default cds.service.impl(async function (this: cds.Service) {
         setImmediate(() => {
             syncCloudFoundryTelemetry().catch(err => LOG.error('Background sync failed:', err.message));
         });
+    });
+
+    // Value Help handler for Statuses code list
+    const defaultStatuses = [
+        { code: 'OPEN', name: 'Open', criticality: 1 },
+        { code: 'INVESTIGATING', name: 'Investigating', criticality: 2 },
+        { code: 'Resolution added by Agent', name: 'Resolution added by Agent', criticality: 3 },
+        { code: 'RESOLVED', name: 'Resolved', criticality: 3 },
+        { code: 'CLOSED', name: 'Closed', criticality: 0 }
+    ];
+
+    this.on('READ', 'Statuses', async (req: cds.Request, next: Function) => {
+        try {
+            const results = await next();
+            if (Array.isArray(results) && results.length > 0) {
+                return results;
+            }
+        } catch (e) {
+            // Fall through to default statuses
+        }
+        return defaultStatuses;
     });
 
     // When a message is added by an Agent, automatically transition incident status to 'Resolution added by Agent'
@@ -424,6 +451,11 @@ export default cds.service.impl(async function (this: cds.Service) {
         const isRoute = category === 'CF_ROUTE_MUTATION' || rootCause.toLowerCase().includes('route');
         const isRestage = category === 'CF_APP_RESTAGE' || rootCause.toLowerCase().includes('restage');
         const isPasswordLocked = rootCause.includes('PASSWORD_LOCKED') || traces.some((t: any) => t.message?.includes('PASSWORD_LOCKED'));
+        const isHanaHibernated = rootCause.toLowerCase().includes('hana') || traces.some((t: any) => (t.message?.includes('ECONNREFUSED') && t.message?.includes('443')) || t.message?.toLowerCase().includes('hana')) || rootCause.toLowerCase().includes('econnrefused');
+        const isAuthScope = rootCause.toLowerCase().includes('xsuaa') || rootCause.toLowerCase().includes('scope') || traces.some((t: any) => (t.statusCode === 401 || t.statusCode === 403) && (t.message?.toLowerCase().includes('scope') || t.message?.includes('JWT') || t.message?.includes('XSUAA')));
+        const isAsgEgress = rootCause.toLowerCase().includes('egress') || rootCause.toLowerCase().includes('asg') || traces.some((t: any) => t.message?.includes('EHOSTUNREACH'));
+        const isDiskExceeded = rootCause.toLowerCase().includes('disk') || rootCause.toLowerCase().includes('enospc') || traces.some((t: any) => t.message?.toLowerCase().includes('disk quota') || t.message?.includes('ENOSPC'));
+        const isHealthFlapping = rootCause.toLowerCase().includes('health check') || traces.some((t: any) => t.message?.toLowerCase().includes('health check') || t.message?.toLowerCase().includes('healthcheck'));
 
         if (hasExit137 || (category === 'CF_APP_CRASH' && rootCause.toLowerCase().includes('memory'))) {
             severityType = 'CRITICAL ERROR';
@@ -436,6 +468,59 @@ export default cds.service.impl(async function (this: cds.Service) {
                 `Inspect memory growth metrics: run \`cf app ${targetApp}\` to ensure RSS stays within limits.`
             ];
             quickFixCli = `cf scale ${targetApp} -m 1G && cf restage ${targetApp}`;
+        } else if (isHanaHibernated) {
+            severityType = 'CRITICAL ERROR';
+            playbookTitle = 'SAP HANA Cloud Hibernation & Connectivity Playbook';
+            diagnosticSummary = `Database connection failed for '${targetApp}' on port 443. The SAP HANA Cloud database instance is likely hibernating or stopped.`;
+            steps = [
+                `Navigate to SAP HANA Cloud Central in BTP Cockpit and resume/start the stopped database instance.`,
+                `Wait until the database status transitions to 'RUNNING'.`,
+                `Verify service binding: \`cf services\``,
+                `Restart application to reconnect connection pools: \`cf restart ${targetApp}\``
+            ];
+            quickFixCli = `cf restart ${targetApp}`;
+        } else if (isAuthScope) {
+            severityType = 'HIGH ERROR';
+            playbookTitle = 'XSUAA / OAuth2 Scope & Authorization Playbook';
+            diagnosticSummary = `HTTP 401/403 authorization error detected for '${targetApp}'. Token signature verification failed or required scope is missing.`;
+            steps = [
+                `Update xs-security.json with necessary scope declarations and role templates.`,
+                `Update XSUAA service instance: \`cf update-service <xsuaa_service> -c xs-security.json\``,
+                `Assign role collection to user in BTP Cockpit under Security > Users.`,
+                `Restage application: \`cf restage ${targetApp}\``
+            ];
+            quickFixCli = `cf restage ${targetApp}`;
+        } else if (isAsgEgress) {
+            severityType = 'HIGH ERROR';
+            playbookTitle = 'Application Security Group (ASG) Network Egress Playbook';
+            diagnosticSummary = `Outbound HTTPS traffic blocked from container '${targetApp}' (EHOSTUNREACH). Default ASG restricts network egress.`;
+            steps = [
+                `Inspect current security groups: \`cf security-groups\``,
+                `Create public egress definition JSON allowing TCP ports 443/80.`,
+                `Bind security group to space: \`cf bind-security-group public_internet ${spaceName}\``,
+                `Restart application: \`cf restart ${targetApp}\``
+            ];
+            quickFixCli = `cf restart ${targetApp}`;
+        } else if (isDiskExceeded) {
+            severityType = 'HIGH ERROR';
+            playbookTitle = 'Container Disk Quota Exhaustion Playbook';
+            diagnosticSummary = `Container '${targetApp}' exceeded allocated disk quota (ENOSPC / 100% disk usage).`;
+            steps = [
+                `Scale container disk quota immediately: \`cf scale ${targetApp} -k 2G\``,
+                `Clean up unrotated local logs or /tmp directory buffering.`,
+                `Restart container: \`cf restart ${targetApp}\``
+            ];
+            quickFixCli = `cf scale ${targetApp} -k 2G && cf restart ${targetApp}`;
+        } else if (isHealthFlapping) {
+            severityType = 'HIGH ERROR';
+            playbookTitle = 'Health Check Timeout & Flapping Recovery Playbook';
+            diagnosticSummary = `Application '${targetApp}' failed health check within timeout or flapped during container startup.`;
+            steps = [
+                `Ensure application binds to process.env.PORT on 0.0.0.0.`,
+                `Extend health check timeout ceiling: \`cf set-health-check ${targetApp} http --path /health --timeout 180\``,
+                `Restart application: \`cf restart ${targetApp}\``
+            ];
+            quickFixCli = `cf set-health-check ${targetApp} http --path /health --timeout 180 && cf restart ${targetApp}`;
         } else if (has502) {
             severityType = 'CRITICAL ERROR';
             playbookTitle = 'Gorouter Ingress HTTP 502 Bad Gateway Playbook';
@@ -581,7 +666,7 @@ export default cds.service.impl(async function (this: cds.Service) {
             quickFixCli,
             `\`\`\``,
             ``,
-            `*Resolved via SAP CAP cf-log-trace-agent Skill at ${timestamp}*`
+            `*Resolved via SAP CAP cf-log-trace-agent & Cloud Foundry Skills Catalog at ${timestamp}*`
         ];
         const messageText = messageLines.filter((l) => l !== undefined && l !== null).join('\n');
 

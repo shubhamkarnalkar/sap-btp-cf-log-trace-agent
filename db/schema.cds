@@ -41,3 +41,9 @@ entity Messages : cuid, managed {
     incident : Association to Incidents;
     text     : LargeString;
 }
+
+entity Statuses {
+    key code        : String(50);
+        name        : String(100);
+        criticality : Integer;
+}

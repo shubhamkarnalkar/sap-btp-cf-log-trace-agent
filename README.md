@@ -363,8 +363,22 @@ Perform an autonomous diagnosis for incident 099ea6eb-c7c0-4b50-8fb0-ca5412c0f53
 
 ---
 
+## 🧠 Cloud Foundry Autonomous Skills Catalog
+
+The agent workspace includes specialized, modular Cloud Foundry skills under [`.agents/skills/`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills) to empower AI models to diagnose issues and suggest prescriptive resolutions:
+
+| Skill | Directory | Primary Resolution Scope |
+| :--- | :--- | :--- |
+| **`cf-incident-resolution`** | [`skills/cf-incident-resolution`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills/cf-incident-resolution/SKILL.md) | Container crashes (`Exit 137` OOM, `Exit 1`, `Exit 255`), Gorouter ingress (`502`, `503`, `504`), health check timeouts, droplet staging, and zero-downtime deployment locks. Includes [Exit Codes Reference Matrix](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills/cf-incident-resolution/references/exit-codes-matrix.md) and [`diagnose-cf-app.js`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills/cf-incident-resolution/scripts/diagnose-cf-app.js). |
+| **`cf-service-connectivity`** | [`skills/cf-service-connectivity`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills/cf-service-connectivity/SKILL.md) | Backing service resolution: SAP HANA Cloud hibernation (`ECONNREFUSED:443`), XSUAA 401/403 scope issues, Destination proxying, Application Security Groups (ASG) network egress, and `VCAP_SERVICES` re-binding. Includes [BTP Services Playbook](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills/cf-service-connectivity/references/btp-services-playbook.md) and [`verify-cf-bindings.js`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills/cf-service-connectivity/scripts/verify-cf-bindings.js). |
+| **`cf-performance-scaling`** | [`skills/cf-performance-scaling`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills/cf-performance-scaling/SKILL.md) | Resource sizing and optimization: Node.js V8 heap ceiling (`--max-old-space-size`), JVM container ratios (`-XX:MaxRAMPercentage`), Diego cell CPU starvation, disk quota (`ENOSPC`), and SAP BTP Application Autoscaler policy rules. Includes [Scaling Matrix](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills/cf-performance-scaling/references/scaling-matrix.md) and [`calculate-cf-sizing.js`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills/cf-performance-scaling/scripts/calculate-cf-sizing.js). |
+| **`cf-log-trace-agent`** | [`skills/cf-log-trace-agent`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/.agents/skills/cf-log-trace-agent/SKILL.md) | Core CAP incident entity schema, CF API synchronization, Model Context Protocol (MCP) server lifecycle, and status transition rules. |
+
+---
+
 ## 📄 License & Maintainers
 
 * **Repository:** `shubhamkarnalkar/sap-btp-cf-log-trace-agent`
 * **Maintainer:** Shubhamkar Nalkar
 * **License:** UNLICENSED (Internal Enterprise)
+
