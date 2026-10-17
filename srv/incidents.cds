@@ -1,57 +1,57 @@
-using {shubh.incidents as sch} from '../db/schema';
+using {shubh.logs_trace_agent as sch} from '../db/schema';
 
-service IncidentService {
-    @mcp: {
-        name       : 'incidents',
-        description: 'Cloud Foundry log & trace incidents with root cause analysis and remediation actions',
+service Logservice {
+    @mcp         : {
+        name       : 'logs',
+        description: 'Cloud Foundry log & trace Logs with root cause analysis and remediation actions',
         resource   : true
     }
-    @Capabilities : {
-        Insertable : true,
-        Updatable  : true,
-        Deletable  : true
+    @Capabilities: {
+        Insertable: true,
+        Updatable : true,
+        Deletable : true
     }
-    entity Incidents        as projection on sch.Incidents actions {
-        @mcp: {
-            name       : 'executeResolutionTask',
-            description: 'Analyzes Cloud Foundry incident error and warning telemetry using the skill catalog, generates prescriptive remediation steps, and appends resolution message to discussions',
-            tool       : true
-        }
-        @Common.SideEffects : {
-            TargetEntities : [
-                messages,
-                $self
-            ],
-            TargetProperties : [
-                'remediationAction',
-                'status'
-            ]
-        }
-        action executeResolutionTask(
-            @title: 'Prompt / Resolution Intent (Optional)'
-            prompt : String
-        ) returns Incidents;
+    entity Logs             as projection on sch.Logs
+        actions {
+            @mcp               : {
+                name       : 'executeResolutionTask',
+                description: 'Analyzes Cloud Foundry incident error and warning telemetry using the skill catalog, generates prescriptive remediation steps, and appends resolution message to discussions',
+                tool       : true
+            }
+            @Common.SideEffects: {
+                TargetEntities  : [
+                    messages,
+                    $self
+                ],
+                TargetProperties: [
+                    'remediationAction',
+                    'status'
+                ]
+            }
+            action executeResolutionTask(
+                                         @title: 'Prompt / Resolution Intent (Optional)'
+                                         prompt: String) returns Logs;
 
-        @mcp: {
-            name       : 'suggestResolution',
-            description: 'Alias for executeResolutionTask - suggests and adds resolution message to incident discussions',
-            tool       : true
-        }
-        @Common.SideEffects : {
-            TargetEntities : [
-                messages,
-                $self
-            ],
-            TargetProperties : [
-                'remediationAction',
-                'status'
-            ]
-        }
-        action suggestResolution(
-            @title: 'Prompt / Resolution Intent (Optional)'
-            prompt : String
-        ) returns Incidents;
-    };
+            @mcp               : {
+                name       : 'suggestResolution',
+                description: 'Alias for executeResolutionTask - suggests and adds resolution message to incident discussions',
+                tool       : true
+            }
+            @Common.SideEffects: {
+                TargetEntities  : [
+                    messages,
+                    $self
+                ],
+                TargetProperties: [
+                    'remediationAction',
+                    'status'
+                ]
+            }
+            action suggestResolution(
+                                     @title: 'Prompt / Resolution Intent (Optional)'
+                                     prompt: String)     returns Logs;
+        };
+
 
     @mcp: {
         name       : 'executeResolutionTaskForIncident',
@@ -59,11 +59,10 @@ service IncidentService {
         tool       : true
     }
     action executeResolutionTaskForIncident(
-        @title: 'Incident UUID'
-        incident_ID : UUID not null,
-        @title: 'Prompt / Resolution Intent (Optional)'
-        prompt      : String
-    ) returns Incidents;
+                                            @title: 'Incident / Log UUID'
+                                            incident_ID: UUID not null,
+                                            @title: 'Prompt / Resolution Intent (Optional)'
+                                            prompt: String) returns Logs;
 
     @mcp: {
         name       : 'suggestResolutionForIncident',
@@ -71,46 +70,45 @@ service IncidentService {
         tool       : true
     }
     action suggestResolutionForIncident(
-        @title: 'Incident UUID'
-        incident_ID : UUID not null,
-        @title: 'Prompt / Resolution Intent (Optional)'
-        prompt      : String
-    ) returns Incidents;
+                                        @title: 'Incident / Log UUID'
+                                        incident_ID: UUID not null,
+                                        @title: 'Prompt / Resolution Intent (Optional)'
+                                        prompt: String)     returns Logs;
 
 
-    @mcp: {
+    @mcp         : {
         name       : 'impactedServices',
-        description: 'Microservices and application instances impacted by incidents',
+        description: 'Microservices and application instances impacted by Logs',
         resource   : true
     }
-    @Capabilities : {
-        Insertable : true,
-        Updatable  : true,
-        Deletable  : true
+    @Capabilities: {
+        Insertable: true,
+        Updatable : true,
+        Deletable : true
     }
     entity ImpactedServices as projection on sch.ImpactedServices;
 
-    @mcp: {
+    @mcp         : {
         name       : 'traceEvents',
         description: 'Cloud Foundry application logs, audit events, and trace execution history',
         resource   : true
     }
-    @Capabilities : {
-        Insertable : true,
-        Updatable  : true,
-        Deletable  : true
+    @Capabilities: {
+        Insertable: true,
+        Updatable : true,
+        Deletable : true
     }
     entity TraceEvents      as projection on sch.TraceEvents;
 
-    @mcp: {
+    @mcp         : {
         name       : 'messages',
         description: 'Incident activity log messages and comments',
         resource   : true
     }
-    @Capabilities : {
-        Insertable : true,
-        Updatable  : true,
-        Deletable  : true
+    @Capabilities: {
+        Insertable: true,
+        Updatable : true,
+        Deletable : true
     }
     entity Messages         as projection on sch.Messages;
 
@@ -124,34 +122,62 @@ service IncidentService {
 }
 
 // Annotate entity wrapper tools for MCP AI agent CRUD operations
-annotate IncidentService.Incidents with @mcp.wrap: {
+annotate Logservice.Logs with @mcp.wrap: {
     tools: true,
-    modes: ['query', 'get', 'create', 'update', 'delete'],
-    hint: 'Use to query, create, update, or delete Cloud Foundry incidents and remediation statements'
+    modes: [
+        'query',
+        'get',
+        'create',
+        'update',
+        'delete'
+    ],
+    hint : 'Use to query, create, update, or delete Cloud Foundry logs, Logs, and remediation statements'
 };
 
-annotate IncidentService.ImpactedServices with @mcp.wrap: {
+
+annotate Logservice.ImpactedServices with @mcp.wrap: {
     tools: true,
-    modes: ['query', 'get', 'create', 'update', 'delete'],
-    hint: 'Use to manage impacted application instances and service bindings'
+    modes: [
+        'query',
+        'get',
+        'create',
+        'update',
+        'delete'
+    ],
+    hint : 'Use to manage impacted application instances and service bindings'
 };
 
-annotate IncidentService.TraceEvents with @mcp.wrap: {
+annotate Logservice.TraceEvents with @mcp.wrap: {
     tools: true,
-    modes: ['query', 'get', 'create', 'update', 'delete'],
-    hint: 'Use to manage and query Cloud Foundry log and trace events'
+    modes: [
+        'query',
+        'get',
+        'create',
+        'update',
+        'delete'
+    ],
+    hint : 'Use to manage and query Cloud Foundry log and trace events'
 };
 
-annotate IncidentService.Messages with @mcp.wrap: {
+annotate Logservice.Messages with @mcp.wrap: {
     tools: true,
-    modes: ['query', 'get', 'create', 'update', 'delete'],
-    hint: 'Use to create, read, update, or delete incident log messages and resolution notes'
+    modes: [
+        'query',
+        'get',
+        'create',
+        'update',
+        'delete'
+    ],
+    hint : 'Use to create, read, update, or delete incident log messages and resolution notes'
 };
 
-annotate IncidentService.Statuses with @mcp.wrap: {
+annotate Logservice.Statuses with @mcp.wrap: {
     tools: true,
-    modes: ['query', 'get'],
-    hint: 'Use to query available incident status codes and descriptions'
+    modes: [
+        'query',
+        'get'
+    ],
+    hint : 'Use to query available incident status codes and descriptions'
 };
 
 using from '../app/annotations';

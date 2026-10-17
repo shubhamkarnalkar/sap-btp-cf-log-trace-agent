@@ -1,44 +1,46 @@
-using IncidentService as service from '../srv/incidents';
+using Logservice as service from '../srv/incidents';
 
 // ============================================================================
-// Incidents Elements Label Annotations
+// Logs Elements Label Annotations
 // ============================================================================
-annotate service.Incidents with {
-    ID                   @title: 'Incident ID'           @Common.Label: 'Incident ID';
-    applicationId        @title: 'Application ID'        @Common.Label: 'Application ID';
-    status               @title: 'Status'                @Common.Label: 'Status'
+annotate service.Logs with {
+    ID                   @title                          : 'Incident ID'           @Common.Label: 'Incident ID';
+    applicationId        @title                          : 'Application ID'        @Common.Label: 'Application ID';
+    statusCode           @title                          : 'Status Code'           @Common.Label: 'Status Code';
+    status               @title                          : 'Status'                @Common.Label: 'Status'
                          @Common.ValueListWithFixedValues: true
-                         @Common.ValueList: {
-                             $Type          : 'Common.ValueListType',
-                             Label          : 'Status',
-                             CollectionPath : 'Statuses',
-                             Parameters     : [
-                                 {
-                                     $Type             : 'Common.ValueListParameterInOut',
-                                     LocalDataProperty : status,
-                                     ValueListProperty : 'code',
-                                 },
-                                 {
-                                     $Type             : 'Common.ValueListParameterDisplayOnly',
-                                     ValueListProperty : 'name',
-                                 }
-                             ]
-                         };
-    errorCategory        @title: 'Error Category'        @Common.Label: 'Error Category';
-    targetSpace          @title: 'Target Space'          @Common.Label: 'Target Space';
-    createdAt            @title: 'Created At'            @Common.Label: 'Created At'  @UI.HiddenFilter: false;
-    correlatedRequestId  @title: 'Request ID / GUID'     @Common.Label: 'Request ID / GUID';
-    rootCauseStatement   @title: 'Root Cause Statement'  @Common.Label: 'Root Cause Statement';
-    remediationAction    @title: 'Remediation Action'    @Common.Label: 'Remediation Action';
+                         @Common.ValueList               : {
+        $Type         : 'Common.ValueListType',
+        Label         : 'Status',
+        CollectionPath: 'Statuses',
+        Parameters    : [
+            {
+                $Type            : 'Common.ValueListParameterInOut',
+                LocalDataProperty: status,
+                ValueListProperty: 'code',
+            },
+            {
+                $Type            : 'Common.ValueListParameterDisplayOnly',
+                ValueListProperty: 'name',
+            }
+        ]
+    };
+    errorCategory        @title                          : 'Error Category'        @Common.Label: 'Error Category';
+    targetSpace          @title                          : 'Target Space'          @Common.Label: 'Target Space';
+    createdAt            @title                          : 'Created At'            @Common.Label: 'Created At'  @UI.HiddenFilter: false;
+    correlatedRequestId  @title                          : 'Request ID / GUID'     @Common.Label: 'Request ID / GUID';
+    timestamp            @title                          : 'Event Timestamp'       @Common.Label: 'Event Timestamp';
+    rootCauseStatement   @title                          : 'Root Cause Statement'  @Common.Label: 'Root Cause Statement';
+    remediationAction    @title                          : 'Remediation Action'    @Common.Label: 'Remediation Action';
 };
 
 // ============================================================================
-// Incidents UI Annotations
+// Logs UI Annotations
 // ============================================================================
-annotate service.Incidents with @(
+annotate service.Logs with @(
     UI.HeaderInfo                    : {
         TypeName      : 'Incident',
-        TypeNamePlural: 'Incidents',
+        TypeNamePlural: 'Logs',
         Title         : {
             $Type: 'UI.DataField',
             Value: correlatedRequestId,
@@ -51,27 +53,29 @@ annotate service.Incidents with @(
     UI.SelectionFields               : [
         ID,
         applicationId,
+        statusCode,
         status,
         errorCategory,
         targetSpace,
+        timestamp,
         createdAt
     ],
     UI.Identification                : [
         {
             $Type : 'UI.DataFieldForAction',
-            Action: 'IncidentService.executeResolutionTask',
+            Action: 'Logservice.executeResolutionTask',
             Label : 'Execute Resolution Task (AI)',
         },
         {
             $Type : 'UI.DataFieldForAction',
-            Action: 'IncidentService.suggestResolution',
+            Action: 'Logservice.suggestResolution',
             Label : 'Add Resolution Message',
         }
     ],
     UI.LineItem                      : [
         {
             $Type : 'UI.DataFieldForAction',
-            Action: 'IncidentService.executeResolutionTask',
+            Action: 'Logservice.executeResolutionTask',
             Label : 'Execute Resolution Task (AI)',
         },
         {
@@ -85,10 +89,24 @@ annotate service.Incidents with @(
             Label: 'Request ID / GUID',
         },
         {
+            $Type: 'UI.DataField',
+            Value: timestamp,
+            Label: 'Event Timestamp',
+        },
+        {
+            $Type       : 'UI.DataField',
+            Value       : statusCode,
+            Label       : 'Status Code',
+            Criticality : (statusCode >= 200
+            and statusCode < 300 ? 3 : (statusCode >= 400
+            and statusCode < 500 ? 2 : (statusCode >= 500 ? 1 : 0))),
+        },
+        {
             $Type       : 'UI.DataField',
             Value       : status,
             Label       : 'Status',
-            Criticality : (status = 'Resolution added by Agent' or status = 'RESOLVED' ? 3 : (status = 'INVESTIGATING' ? 2 : 1)),
+            Criticality : (status = 'Resolution added by Agent'
+            or status = 'RESOLVED' ? 3 : (status = 'INVESTIGATING' ? 2 : 1)),
         },
         {
             $Type: 'UI.DataField',
@@ -152,6 +170,16 @@ annotate service.Incidents with @(
             $Type: 'UI.DataField',
             Value: correlatedRequestId,
             Label: 'Correlated Request ID',
+        },
+        {
+            $Type: 'UI.DataField',
+            Value: timestamp,
+            Label: 'Event Timestamp',
+        },
+        {
+            $Type: 'UI.DataField',
+            Value: statusCode,
+            Label: 'Status Code',
         },
         {
             $Type: 'UI.DataField',
@@ -397,49 +425,49 @@ annotate service.Messages with @(
 // Statuses UI & Value Help Annotations
 // ============================================================================
 annotate service.Statuses with {
-    code        @title: 'Status Code'  @Common.Label: 'Status Code'  @Common.Text: name  @Common.TextArrangement: #TextFirst;
-    name        @title: 'Status Name'  @Common.Label: 'Status Name';
-    criticality @title: 'Criticality'  @Common.Label: 'Criticality';
+    code         @title: 'Status Code'  @Common.Label: 'Status Code'  @Common.Text: name  @Common.TextArrangement: #TextFirst;
+    name         @title: 'Status Name'  @Common.Label: 'Status Name';
+    criticality  @title: 'Criticality'  @Common.Label: 'Criticality';
 };
 
 annotate service.Statuses with @(
-    UI.HeaderInfo     : {
-        TypeName       : 'Status',
-        TypeNamePlural : 'Statuses',
-        Title          : {
-            $Type : 'UI.DataField',
-            Value : name,
+    UI.HeaderInfo    : {
+        TypeName      : 'Status',
+        TypeNamePlural: 'Statuses',
+        Title         : {
+            $Type: 'UI.DataField',
+            Value: name,
         },
-        Description    : {
-            $Type : 'UI.DataField',
-            Value : code,
+        Description   : {
+            $Type: 'UI.DataField',
+            Value: code,
         }
     },
-    UI.Identification : [
+    UI.Identification: [
         {
-            $Type : 'UI.DataField',
-            Value : code,
+            $Type: 'UI.DataField',
+            Value: code,
         },
         {
-            $Type : 'UI.DataField',
-            Value : name,
+            $Type: 'UI.DataField',
+            Value: name,
         }
     ],
-    UI.LineItem       : [
+    UI.LineItem      : [
         {
-            $Type : 'UI.DataField',
-            Value : code,
-            Label : 'Status Code',
+            $Type: 'UI.DataField',
+            Value: code,
+            Label: 'Status Code',
         },
         {
-            $Type : 'UI.DataField',
-            Value : name,
-            Label : 'Status Name',
+            $Type: 'UI.DataField',
+            Value: name,
+            Label: 'Status Name',
         },
         {
-            $Type : 'UI.DataField',
-            Value : criticality,
-            Label : 'Criticality',
+            $Type: 'UI.DataField',
+            Value: criticality,
+            Label: 'Criticality',
         }
     ]
 );

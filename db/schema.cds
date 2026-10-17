@@ -1,14 +1,16 @@
-namespace shubh.incidents;
+namespace shubh.logs_trace_agent;
 
 using {
     cuid,
     managed
 } from '@sap/cds/common';
 
-entity Incidents : cuid, managed {
+entity Logs : cuid, managed {
     applicationId       : String(100);
     targetSpace         : String(100);
     correlatedRequestId : String(100);
+    timestamp           : Timestamp;
+    statusCode          : Integer;
     status              : String(50) default 'OPEN';
     errorCategory       : String(50);
     rootCauseStatement  : LargeString;
@@ -22,13 +24,13 @@ entity Incidents : cuid, managed {
 }
 
 entity ImpactedServices : cuid {
-    incident    : Association to Incidents;
+    incident    : Association to Logs;
     serviceName : String(100);
     instanceId  : String(50);
 }
 
 entity TraceEvents : cuid {
-    incident    : Association to Incidents;
+    incident    : Association to Logs;
     timestamp   : Timestamp;
     component   : String(50); // RTR, CELL, APP
     serviceName : String(100);
@@ -38,7 +40,7 @@ entity TraceEvents : cuid {
 }
 
 entity Messages : cuid, managed {
-    incident : Association to Incidents;
+    incident : Association to Logs;
     text     : LargeString;
 }
 

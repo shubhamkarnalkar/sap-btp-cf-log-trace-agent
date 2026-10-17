@@ -3,11 +3,11 @@
  * 
  * Performs:
  * 1. Initialize MCP JSON-RPC 2.0 session on http://localhost:4004/mcp
- * 2. Discover next OPEN or INVESTIGATING incident via IncidentService_Incidents_query
- * 3. Fetch container traces via IncidentService_TraceEvents_query
- * 4. Fetch impacted services via IncidentService_ImpactedServices_query
+ * 2. Discover next OPEN or INVESTIGATING incident via Logservice_Logs_query
+ * 3. Fetch container traces via Logservice_TraceEvents_query
+ * 4. Fetch impacted services via Logservice_ImpactedServices_query
  * 5. Formulate prescriptive resolution playbook (Human-in-the-Loop)
- * 6. Append resolution message to discussions via IncidentService_Messages_create
+ * 6. Append resolution message to discussions via Logservice_Messages_create
  *    (Without updating the incident status or remediationAction directly)
  */
 
@@ -60,20 +60,20 @@ async function run() {
     if (targetIdArg) {
         console.log(`2️⃣  Targeting specified Incident ID via MCP: ${targetIdArg}...`);
         const qRes = await mcpRequest('tools/call', {
-            name: 'IncidentService_Incidents_query',
+            name: 'Logservice_Logs_query',
             arguments: {
                 return: 'rows',
                 where: [{ field: 'ID', op: 'eq', value: targetIdArg }]
             }
         }, sessionId, 2);
         const rows = (qRes.data?.result?.content || []).map(c => {
-            try { return JSON.parse(c.text); } catch(e) { return c; }
+            try { return JSON.parse(c.text); } catch (e) { return c; }
         });
         incident = rows[0];
     } else {
-        console.log('2️⃣  Discovering next active incident via MCP (IncidentService_Incidents_query)...');
+        console.log('2️⃣  Discovering next active incident via MCP (Logservice_Logs_query)...');
         let qRes = await mcpRequest('tools/call', {
-            name: 'IncidentService_Incidents_query',
+            name: 'Logservice_Logs_query',
             arguments: {
                 return: 'rows',
                 where: [{ field: 'status', op: 'eq', value: 'OPEN' }],
@@ -81,14 +81,14 @@ async function run() {
             }
         }, sessionId, 2);
         let rows = (qRes.data?.result?.content || []).map(c => {
-            try { return JSON.parse(c.text); } catch(e) { return c; }
+            try { return JSON.parse(c.text); } catch (e) { return c; }
         });
-        
-        // If no OPEN incidents, check INVESTIGATING
+
+        // If no OPEN Logs, check INVESTIGATING
         if (rows.length === 0) {
-            console.log('   ℹ️  No OPEN incidents found, checking INVESTIGATING state...');
+            console.log('   ℹ️  No OPEN Logs found, checking INVESTIGATING state...');
             qRes = await mcpRequest('tools/call', {
-                name: 'IncidentService_Incidents_query',
+                name: 'Logservice_Logs_query',
                 arguments: {
                     return: 'rows',
                     where: [{ field: 'status', op: 'eq', value: 'INVESTIGATING' }],
@@ -99,7 +99,7 @@ async function run() {
         }
 
         if (rows.length === 0) {
-            console.log('   ℹ️  No active incidents found in database.');
+            console.log('   ℹ️  No active Logs found in database.');
             return;
         }
 
@@ -119,9 +119,9 @@ async function run() {
     console.log(`   • Root Cause:    ${incident.rootCauseStatement}\n`);
 
     // Step 3: Fetch Traces via MCP
-    console.log('3️⃣  Retrieving telemetry traces via MCP (IncidentService_TraceEvents_query)...');
+    console.log('3️⃣  Retrieving telemetry traces via MCP (Logservice_TraceEvents_query)...');
     const traceRes = await mcpRequest('tools/call', {
-        name: 'IncidentService_TraceEvents_query',
+        name: 'Logservice_TraceEvents_query',
         arguments: {
             return: 'rows',
             where: [{ field: 'incident_ID', op: 'eq', value: incident.ID }]
@@ -131,13 +131,13 @@ async function run() {
     const traces = (traceRes.data?.result?.content || []).map(c => JSON.parse(c.text));
     console.log(`   ✅ Retrieved ${traces.length} trace event(s) from MCP server.`);
     traces.forEach((t, i) => {
-        console.log(`      [${i+1}] Component: ${t.component || 'N/A'} | StatusCode: ${t.statusCode || '-'} | Level: ${t.logLevel} | ${t.message}`);
+        console.log(`      [${i + 1}] Component: ${t.component || 'N/A'} | StatusCode: ${t.statusCode || '-'} | Level: ${t.logLevel} | ${t.message}`);
     });
 
     // Step 4: Fetch Impacted Services via MCP
-    console.log('\n4️⃣  Retrieving impacted services via MCP (IncidentService_ImpactedServices_query)...');
+    console.log('\n4️⃣  Retrieving impacted services via MCP (Logservice_ImpactedServices_query)...');
     const svcRes = await mcpRequest('tools/call', {
-        name: 'IncidentService_ImpactedServices_query',
+        name: 'Logservice_ImpactedServices_query',
         arguments: {
             return: 'rows',
             where: [{ field: 'incident_ID', op: 'eq', value: incident.ID }]
@@ -152,7 +152,7 @@ async function run() {
     const appName = incident.applicationId || 'cf-app';
     const category = incident.errorCategory || 'CF_GENERAL';
     const rc = incident.rootCauseStatement || '';
-    
+
     let playbookTitle = '';
     let diagnosis = '';
     let cliSteps = [];
@@ -225,12 +225,12 @@ async function run() {
     console.log(proposedComment);
     console.log('----------------------------------------------------------------\n');
 
-    // Step 6: Post Resolution Comment via MCP (IncidentService_Messages_create)
-    console.log('6️⃣  Posting resolution message via MCP tool: IncidentService_Messages_create...');
+    // Step 6: Post Resolution Comment via MCP (Logservice_Messages_create)
+    console.log('6️⃣  Posting resolution message via MCP tool: Logservice_Messages_create...');
     console.log('   (Ensuring incident status is NOT updated immediately as requested)\n');
-    
+
     const postRes = await mcpRequest('tools/call', {
-        name: 'IncidentService_Messages_create',
+        name: 'Logservice_Messages_create',
         arguments: {
             incident_ID: incident.ID,
             text: proposedComment
@@ -244,7 +244,7 @@ async function run() {
 
     const createdMsgText = postRes.data?.result?.content?.[0]?.text;
     let createdMsg = null;
-    try { createdMsg = JSON.parse(createdMsgText); } catch(e) { createdMsg = createdMsgText; }
+    try { createdMsg = JSON.parse(createdMsgText); } catch (e) { createdMsg = createdMsgText; }
 
     console.log('   ✅ MCP Tool Succeeded!');
     console.log(`   • Message ID:  ${createdMsg?.ID || 'created'}`);
@@ -252,7 +252,7 @@ async function run() {
 
     // Query updated incident via MCP to confirm status transition
     const verifyRes = await mcpRequest('tools/call', {
-        name: 'IncidentService_Incidents_query',
+        name: 'Logservice_Logs_query',
         arguments: {
             return: 'rows',
             where: [{ field: 'ID', op: 'eq', value: incident.ID }]

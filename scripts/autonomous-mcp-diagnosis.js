@@ -2,9 +2,9 @@
  * Autonomous Cloud Foundry Incident Diagnosis via Model Context Protocol (MCP)
  * 
  * Strict Requirements:
- * 1. Use ONLY MCP tools (IncidentService_Incidents_query, IncidentService_TraceEvents_query, IncidentService_ImpactedServices_query) to fetch telemetry.
+ * 1. Use ONLY MCP tools (Logservice_Logs_query, Logservice_TraceEvents_query, Logservice_ImpactedServices_query) to fetch telemetry.
  * 2. Formulate a prescriptive remediation playbook (exit codes, cf logs, cf events, scaling, restart steps) using the cf-log-trace-agent skill catalog.
- * 3. Post the playbook as a discussion comment using IncidentService_Messages_create MCP tool.
+ * 3. Post the playbook as a discussion comment using Logservice_Messages_create MCP tool.
  * 4. Verify that the incident's status automatically transitions to "Resolution added by Agent".
  */
 
@@ -50,10 +50,10 @@ async function runAutonomousDiagnosis() {
     const sessionId = initRes.headers.get('mcp-session-id');
     console.log(`   ✅ Session Initialized. Session-ID: ${sessionId || 'standard'}\n`);
 
-    // Requirement 1: Use ONLY IncidentService_Incidents_query to discover active incident
-    console.log('2️⃣  Discovering next active incident via MCP (IncidentService_Incidents_query)...');
+    // Requirement 1: Use ONLY Logservice_Logs_query to discover active incident
+    console.log('2️⃣  Discovering next active incident via MCP (Logservice_Logs_query)...');
     let incRes = await mcpCall('tools/call', {
-        name: 'IncidentService_Incidents_query',
+        name: 'Logservice_Logs_query',
         arguments: {
             return: 'rows',
             where: [{ field: 'status', op: 'eq', value: 'INVESTIGATING' }],
@@ -62,13 +62,13 @@ async function runAutonomousDiagnosis() {
     }, sessionId, 2);
 
     let incidentRows = (incRes.data?.result?.content || []).map(c => {
-        try { return JSON.parse(c.text); } catch(e) { return c; }
+        try { return JSON.parse(c.text); } catch (e) { return c; }
     });
 
     if (incidentRows.length === 0) {
-        console.log('   ℹ️  No INVESTIGATING incidents, checking OPEN...');
+        console.log('   ℹ️  No INVESTIGATING Logs, checking OPEN...');
         incRes = await mcpCall('tools/call', {
-            name: 'IncidentService_Incidents_query',
+            name: 'Logservice_Logs_query',
             arguments: {
                 return: 'rows',
                 where: [{ field: 'status', op: 'eq', value: 'OPEN' }],
@@ -79,21 +79,22 @@ async function runAutonomousDiagnosis() {
     }
 
     if (incidentRows.length === 0) {
-        throw new Error('No active incidents found in the system to diagnose.');
+        throw new Error('No active Logs found in the system to diagnose.');
     }
 
     const incident = incidentRows[0];
     console.log(`   🎯 Selected Active Incident: ${incident.ID}`);
     console.log(`   • Current Status:    ${incident.status}`);
+    console.log(`   • Final Status Code: ${incident.statusCode || 'N/A'}`);
     console.log(`   • Error Category:    ${incident.errorCategory}`);
     console.log(`   • Target Space:      ${incident.targetSpace}`);
     console.log(`   • Correlated Req ID: ${incident.correlatedRequestId}`);
     console.log(`   • Root Cause:        ${incident.rootCauseStatement}\n`);
 
-    // Requirement 1: Query telemetry traces via IncidentService_TraceEvents_query
-    console.log('3️⃣  Fetching telemetry traces via MCP (IncidentService_TraceEvents_query)...');
+    // Requirement 1: Query telemetry traces via Logservice_TraceEvents_query
+    console.log('3️⃣  Fetching telemetry traces via MCP (Logservice_TraceEvents_query)...');
     const traceRes = await mcpCall('tools/call', {
-        name: 'IncidentService_TraceEvents_query',
+        name: 'Logservice_TraceEvents_query',
         arguments: {
             return: 'rows',
             where: [{ field: 'incident_ID', op: 'eq', value: incident.ID }]
@@ -105,13 +106,13 @@ async function runAutonomousDiagnosis() {
     });
     console.log(`   ✅ Retrieved ${traces.length} trace event(s) from MCP server:`);
     traces.forEach((t, i) => {
-        console.log(`      [${i+1}] Component: ${t.component || 'N/A'} | StatusCode: ${t.statusCode || '-'} | LogLevel: ${t.logLevel} | ${t.message}`);
+        console.log(`      [${i + 1}] Component: ${t.component || 'N/A'} | StatusCode: ${t.statusCode || '-'} | LogLevel: ${t.logLevel} | ${t.message}`);
     });
 
-    // Requirement 1: Query impacted services via IncidentService_ImpactedServices_query
-    console.log('\n4️⃣  Fetching impacted services via MCP (IncidentService_ImpactedServices_query)...');
+    // Requirement 1: Query impacted services via Logservice_ImpactedServices_query
+    console.log('\n4️⃣  Fetching impacted services via MCP (Logservice_ImpactedServices_query)...');
     const svcRes = await mcpCall('tools/call', {
-        name: 'IncidentService_ImpactedServices_query',
+        name: 'Logservice_ImpactedServices_query',
         arguments: {
             return: 'rows',
             where: [{ field: 'incident_ID', op: 'eq', value: incident.ID }]
@@ -123,7 +124,7 @@ async function runAutonomousDiagnosis() {
     });
     console.log(`   ✅ Retrieved ${services.length} impacted service(s):`);
     services.forEach((s, i) => {
-        console.log(`      [${i+1}] Service Name: ${s.serviceName} | Instance ID: ${s.instanceId}`);
+        console.log(`      [${i + 1}] Service Name: ${s.serviceName} | Instance ID: ${s.instanceId}`);
     });
 
     const targetAppName = services[0]?.serviceName || incident.applicationId || 'cf-log-trace-agent-srv';
@@ -131,7 +132,7 @@ async function runAutonomousDiagnosis() {
 
     // Requirement 2: Formulate prescriptive remediation playbook using cf-log-trace-agent skill catalog
     console.log('\n5️⃣  Formulating Prescriptive Remediation Playbook (CF Skills Catalog)...');
-    
+
     const playbookLines = [
         '🤖 [AI AGENT DIAGNOSTIC RESOLUTION - VIA MCP SERVER]',
         'Resolution Playbook: Cloud Foundry Process Crash & Ingress Service Degradation',
@@ -193,10 +194,10 @@ async function runAutonomousDiagnosis() {
     console.log(playbookText);
     console.log('----------------------------------------------------------------\n');
 
-    // Requirement 3: Post the playbook as discussion comment using IncidentService_Messages_create MCP tool
-    console.log('6️⃣  Posting Playbook Comment via MCP (IncidentService_Messages_create)...');
+    // Requirement 3: Post the playbook as discussion comment using Logservice_Messages_create MCP tool
+    console.log('6️⃣  Posting Playbook Comment via MCP (Logservice_Messages_create)...');
     const msgRes = await mcpCall('tools/call', {
-        name: 'IncidentService_Messages_create',
+        name: 'Logservice_Messages_create',
         arguments: {
             incident_ID: incident.ID,
             text: playbookText
@@ -214,9 +215,9 @@ async function runAutonomousDiagnosis() {
     console.log(`   • Created At:  ${createdMsg.createdAt}\n`);
 
     // Requirement 4: Verify that the incident's status automatically transitions to "Resolution added by Agent"
-    console.log('7️⃣  Verifying Incident Status Transition via MCP (IncidentService_Incidents_query)...');
+    console.log('7️⃣  Verifying Incident Status Transition via MCP (Logservice_Logs_query)...');
     const verifyRes = await mcpCall('tools/call', {
-        name: 'IncidentService_Incidents_query',
+        name: 'Logservice_Logs_query',
         arguments: {
             return: 'rows',
             where: [{ field: 'ID', op: 'eq', value: incident.ID }]

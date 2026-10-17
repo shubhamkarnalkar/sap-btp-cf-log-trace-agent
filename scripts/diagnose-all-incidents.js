@@ -3,15 +3,15 @@
  * 
  * Strict Requirements:
  * 1. Use ONLY MCP tools:
- *    - IncidentService_Incidents_query
- *    - IncidentService_TraceEvents_query
- *    - IncidentService_ImpactedServices_query
+ *    - Logservice_Logs_query
+ *    - Logservice_TraceEvents_query
+ *    - Logservice_ImpactedServices_query
  * 2. Formulate prescriptive remediation playbooks (exit codes, cf logs, cf events, scaling, restart steps)
  *    using the cf-log-trace-agent skill catalog.
- * 3. Post the playbook as discussion comment using IncidentService_Messages_create MCP tool.
+ * 3. Post the playbook as discussion comment using Logservice_Messages_create MCP tool.
  * 4. Verify that each incident's status automatically transitions to "Resolution added by Agent".
  * 
- * Executes for ALL active incidents on http://localhost:4004/mcp.
+ * Executes for ALL active Logs on http://localhost:4004/mcp.
  */
 
 const MCP_URL = process.env.MCP_URL || 'http://localhost:4004/mcp';
@@ -212,7 +212,7 @@ function buildPlaybook(incident, traces, services) {
 
 async function main() {
     console.log('================================================================');
-    console.log('🚀 AUTONOMOUS INCIDENT DIAGNOSIS FOR ALL ACTIVE INCIDENTS');
+    console.log('🚀 AUTONOMOUS INCIDENT DIAGNOSIS FOR ALL ACTIVE Logs');
     console.log(`📡 MCP Gateway: ${MCP_URL}`);
     console.log('================================================================\n');
 
@@ -231,16 +231,16 @@ async function main() {
     const sessionId = initRes.headers.get('mcp-session-id');
     console.log(`   ✅ Session Initialized: ${sessionId || 'standard'}\n`);
 
-    // 2. Fetch all active incidents via IncidentService_Incidents_query
-    console.log('2️⃣  Discovering all active incidents via MCP (IncidentService_Incidents_query)...');
+    // 2. Fetch all active Logs via Logservice_Logs_query
+    console.log('2️⃣  Discovering all active Logs via MCP (Logservice_Logs_query)...');
     let page = 0;
-    let allActiveIncidents = [];
+    let allActiveLogs = [];
     const pageSize = 50;
 
     let rows = [];
     for (let attempt = 1; attempt <= 3; attempt++) {
         const qRes = await mcpCall('tools/call', {
-            name: 'IncidentService_Incidents_query',
+            name: 'Logservice_Logs_query',
             arguments: {
                 return: 'rows',
                 top: 100
@@ -257,26 +257,26 @@ async function main() {
         await new Promise(r => setTimeout(r, 2000));
     }
 
-    allActiveIncidents = rows.filter(r => 
-        r.status !== 'Resolution added by Agent' && 
-        r.status !== 'RESOLVED' && 
+    allActiveLogs = rows.filter(r =>
+        r.status !== 'Resolution added by Agent' &&
+        r.status !== 'RESOLVED' &&
         r.status !== 'CLOSED'
     );
 
-    console.log(`   📊 Discovered ${allActiveIncidents.length} active incident(s) requiring diagnosis.\n`);
+    console.log(`   📊 Discovered ${allActiveLogs.length} active incident(s) requiring diagnosis.\n`);
 
-    if (allActiveIncidents.length === 0) {
-        console.log('   🎉 All incidents are already resolved or have resolutions added!');
+    if (allActiveLogs.length === 0) {
+        console.log('   🎉 All Logs are already resolved or have resolutions added!');
         return;
     }
 
     const resultsSummary = [];
 
     // 3. Process each incident sequentially
-    for (let i = 0; i < allActiveIncidents.length; i++) {
-        const incident = allActiveIncidents[i];
+    for (let i = 0; i < allActiveLogs.length; i++) {
+        const incident = allActiveLogs[i];
         const num = i + 1;
-        const total = allActiveIncidents.length;
+        const total = allActiveLogs.length;
         console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
         console.log(`[${num}/${total}] Diagnosing Incident: ${incident.ID}`);
         console.log(`     • Status:   ${incident.status}`);
@@ -284,9 +284,9 @@ async function main() {
         console.log(`     • Target:   ${incident.applicationId || 'cf-app'}`);
         console.log(`     • Cause:    ${incident.rootCauseStatement}`);
 
-        // A. Fetch Traces via IncidentService_TraceEvents_query
+        // A. Fetch Traces via Logservice_TraceEvents_query
         const traceRes = await mcpCall('tools/call', {
-            name: 'IncidentService_TraceEvents_query',
+            name: 'Logservice_TraceEvents_query',
             arguments: {
                 return: 'rows',
                 where: [{ field: 'incident_ID', op: 'eq', value: incident.ID }]
@@ -297,9 +297,9 @@ async function main() {
             try { return JSON.parse(c.text); } catch (e) { return c; }
         });
 
-        // B. Fetch Impacted Services via IncidentService_ImpactedServices_query
+        // B. Fetch Impacted Services via Logservice_ImpactedServices_query
         const svcRes = await mcpCall('tools/call', {
-            name: 'IncidentService_ImpactedServices_query',
+            name: 'Logservice_ImpactedServices_query',
             arguments: {
                 return: 'rows',
                 where: [{ field: 'incident_ID', op: 'eq', value: incident.ID }]
@@ -313,9 +313,9 @@ async function main() {
         // C. Formulate Playbook
         const { playbookText, quickFix, playbookTitle } = buildPlaybook(incident, traces, services);
 
-        // D. Post Message via IncidentService_Messages_create
+        // D. Post Message via Logservice_Messages_create
         const msgRes = await mcpCall('tools/call', {
-            name: 'IncidentService_Messages_create',
+            name: 'Logservice_Messages_create',
             arguments: {
                 incident_ID: incident.ID,
                 text: playbookText
@@ -324,9 +324,9 @@ async function main() {
 
         const createdMsg = JSON.parse(msgRes.data?.result?.content?.[0]?.text || '{}');
 
-        // E. Verify Status Transition via IncidentService_Incidents_query
+        // E. Verify Status Transition via Logservice_Logs_query
         const verifyRes = await mcpCall('tools/call', {
-            name: 'IncidentService_Incidents_query',
+            name: 'Logservice_Logs_query',
             arguments: {
                 return: 'rows',
                 where: [{ field: 'ID', op: 'eq', value: incident.ID }]
@@ -355,7 +355,7 @@ async function main() {
     console.log(`\n================================================================`);
     console.log(`🎉 BATCH DIAGNOSIS COMPLETE!`);
     console.log(`================================================================`);
-    console.log(`Total Incidents Processed: ${resultsSummary.length}`);
+    console.log(`Total Logs Processed: ${resultsSummary.length}`);
     console.log(`Successfully Transitioned to "Resolution added by Agent": ${resultsSummary.filter(r => r.verified).length}/${resultsSummary.length}`);
     console.log('================================================================\n');
 

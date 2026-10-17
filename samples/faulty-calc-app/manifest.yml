@@ -1,0 +1,9 @@
+---
+applications:
+- name: faulty-calc-app
+  memory: 128M
+  instances: 1
+  command: node server.js
+  buildpack: nodejs_buildpack
+  health-check-type: port
+  random-route: true

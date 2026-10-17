@@ -1,0 +1,15 @@
+{
+  "name": "faulty-calc-app",
+  "version": "1.0.0",
+  "description": "Sample Cloud Foundry application demonstrating an unhandled division by zero crash and automated AI code resolution",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

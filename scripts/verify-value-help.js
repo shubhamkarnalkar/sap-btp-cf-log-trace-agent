@@ -17,8 +17,8 @@ async function test() {
     const hasValueList = metaText.includes('Common.ValueList') && metaText.includes('Statuses');
     console.log('ValueList found in metadata:', hasValueList);
     if (hasValueList) {
-        const matches = metaText.split('\n').filter(l => 
-            l.includes('ValueList') || l.includes('CollectionPath') || l.includes('ValueListWithFixedValues') || l.includes('IncidentService.Incidents/status')
+        const matches = metaText.split('\n').filter(l =>
+            l.includes('ValueList') || l.includes('CollectionPath') || l.includes('ValueListWithFixedValues') || l.includes('Logservice.Logs/status')
         );
         console.log('Annotation snippets:\n', matches.map(l => l.trim()).join('\n'));
     }
@@ -56,13 +56,13 @@ async function test() {
             id: 2,
             method: 'tools/call',
             params: {
-                name: 'IncidentService_Statuses_query',
+                name: 'Logservice_Statuses_query',
                 arguments: { return: 'rows' }
             }
         })
     });
     const toolsData = await toolsRes.json();
-    console.log('MCP IncidentService_Statuses_query Result:');
+    console.log('MCP Logservice_Statuses_query Result:');
     const statusRows = (toolsData.result?.content || []).map(c => JSON.parse(c.text));
     console.log(JSON.stringify(statusRows, null, 2));
 }

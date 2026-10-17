@@ -7,7 +7,7 @@
 
 An intelligent observability, incident intelligence, and autonomous AI remediation platform built on the **SAP Cloud Application Programming Model (CAP)** and the **Model Context Protocol (MCP)**. 
 
-The service ingests application lifecycle events (`/v3/apps`) and audit trails (`/v3/audit_events`) from SAP BTP Cloud Foundry, normalizes them into structured incident telemetry, presents a 360° cockpit via **SAP Fiori Elements**, and exposes standard **MCP AI tools** for autonomous agents (Claude, Gemini, Antigravity) to query, diagnose, and remediate incidents in real time.
+The service ingests application lifecycle events (`/v3/apps`) and audit trails (`/v3/audit_events`) from SAP BTP Cloud Foundry, normalizes them into structured incident telemetry, presents a 360° cockpit via **SAP Fiori Elements**, and exposes standard **MCP AI tools** for autonomous agents (Claude, Gemini, Antigravity) to query, diagnose, and remediate Logs in real time.
 
 ---
 
@@ -30,10 +30,10 @@ The service ingests application lifecycle events (`/v3/apps`) and audit trails (
 
 ## ⚡ Key Features
 
-* **Automated Cloud Foundry Telemetry Ingestion**: Seamless CAP lifecycle hook (`before('READ', 'Incidents')`) that interrogates Cloud Foundry Controller v3 REST APIs on-demand.
+* **Automated Cloud Foundry Telemetry Ingestion**: Seamless CAP lifecycle hook (`before('READ', 'Logs')`) that interrogates Cloud Foundry Controller v3 REST APIs on-demand.
 * **4-Tier Resilient Authentication**: Automatic token acquisition hierarchy spanning Bearer tokens, Password grant, Client Credentials, and a local `cf oauth-token` developer CLI bridge.
 * **Model Context Protocol (MCP) Server**: Full JSON-RPC tool support (`wrap_entities_to_actions`) enabling AI Agents to execute `query`, `get`, `create`, `update`, and `delete` operations without custom API glue code.
-* **Relational CDS Incident Schema**: Strongly typed domain entities (`Incidents`, `ImpactedServices`, `TraceEvents`, `Messages`) with composition-based cascading.
+* **Relational CDS Incident Schema**: Strongly typed domain entities (`Logs`, `ImpactedServices`, `TraceEvents`, `Messages`) with composition-based cascading.
 * **Enterprise Fiori Elements UX**: Full `@UI` annotations with semantic criticality highlighting (Green / Amber / Red), multi-facet Object Pages, and selection filters.
 * **Autonomous Remediation Loop**: AI Agents can read router/cell crash logs, synthesize root causes, and write back remediation action plans directly.
 
@@ -75,10 +75,10 @@ cf-log-trace-agent/
 ├── app/
 │   └── annotations.cds       # SAP Fiori Elements UI annotations & criticality
 ├── db/
-│   └── schema.cds            # Domain entities (Incidents, Traces, ImpactedServices, Messages)
+│   └── schema.cds            # Domain entities (Logs, Traces, ImpactedServices, Messages)
 ├── srv/
-│   ├── incidents.cds         # IncidentService CDS definition with @mcp annotations
-│   └── incidents.ts          # Core service implementation, 4-tier auth & CF sync pipeline
+│   ├── Logs.cds         # Logservice CDS definition with @mcp annotations
+│   └── Logs.ts          # Core service implementation, 4-tier auth & CF sync pipeline
 ├── presentation/
 │   └── index.html            # Standalone interactive slide deck web application
 ├── .agents/
@@ -155,7 +155,7 @@ CF_CLIENT_SECRET=
 npx tsc --noEmit
 
 # Validate CDS service models
-npx cds compile srv/incidents.cds
+npx cds compile srv/Logs.cds
 ```
 
 ### 5. Launch Local Development Server
@@ -193,7 +193,7 @@ The service automatically loads variables from `default.env` via `dotenv`. Key v
 
 ## 🛡️ 4-Tier Authentication Engine
 
-When telemetry synchronization is triggered in [`srv/incidents.ts`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/srv/incidents.ts), `getCloudFoundryToken()` resolves authorization credentials using a robust 4-tier fallback strategy:
+When telemetry synchronization is triggered in [`srv/Logs.ts`](file:///c:/Users/shubhamkar.nalkar/Desktop/Office/BTP/CAP/cf-log-trace-agent/srv/Logs.ts), `getCloudFoundryToken()` resolves authorization credentials using a robust 4-tier fallback strategy:
 
 1. **Tier 1 — Direct Bearer Token**: Uses `CF_BEARER_TOKEN` if defined (instant, bypasses external token calls).
 2. **Tier 2 — Resource Owner Password Grant**: Exchanges `CF_USERNAME` and `CF_PASSWORD` via `CF_TOKEN_URL`. Gracefully detects and reports BTP `PASSWORD_LOCKED` states.
@@ -220,7 +220,7 @@ The project integrates `@cap-js/mcp`, `@cap-js/mcp-server`, and `@gavdi/cap-mcp`
         "update",
         "delete"
       ],
-      "instructions": "MCP Server for Cloud Foundry Log & Trace Incident Agent. Enables querying, creating, updating, and deleting incidents, trace events, impacted services, and messages."
+      "instructions": "MCP Server for Cloud Foundry Log & Trace Incident Agent. Enables querying, creating, updating, and deleting Logs, trace events, impacted services, and messages."
     }
   }
 }
@@ -231,10 +231,10 @@ When an AI agent inspects `http://localhost:4004/mcp`, it automatically discover
 
 | Tool Name | Operation | Description |
 |---|---|---|
-| `incidents_query` | Query | Filter incidents by `status`, `targetSpace`, `errorCategory` |
-| `incidents_get` | Read | Fetch deep incident details and composition children |
-| `incidents_update` | Update | Update incident `status`, `rootCauseStatement`, and `remediationAction` |
-| `impactedServices_query` | Query | List microservices and instance GUIDs associated with incidents |
+| `Logs_query` | Query | Filter Logs by `status`, `targetSpace`, `errorCategory` |
+| `Logs_get` | Read | Fetch deep incident details and composition children |
+| `Logs_update` | Update | Update incident `status`, `rootCauseStatement`, and `remediationAction` |
+| `impactedServices_query` | Query | List microservices and instance GUIDs associated with Logs |
 | `traceEvents_query` | Query | Query detailed component logs (`RTR`, `CELL`, `APP`) with status codes |
 | `messages_create` | Create | Append diagnostic comments or action logs to an incident |
 
@@ -337,9 +337,9 @@ Diagnose the next open incident strictly using the MCP server. Analyze its telem
 Use this prompt if you want zero ambiguity about which MCP tools to invoke:
 ```text
 Perform an autonomous diagnosis for the next active Cloud Foundry incident following these strict requirements:
-1. Use ONLY the MCP server tools (IncidentService_Incidents_query, IncidentService_TraceEvents_query, IncidentService_ImpactedServices_query) to fetch telemetry.
+1. Use ONLY the MCP server tools (Logservice_Logs_query, Logservice_TraceEvents_query, Logservice_ImpactedServices_query) to fetch telemetry.
 2. Formulate a prescriptive remediation playbook (exit codes, cf logs, cf events, scaling, and restart steps) using the cf-log-trace-agent skill catalog.
-3. Post the playbook as a discussion comment using the IncidentService_Messages_create MCP tool.
+3. Post the playbook as a discussion comment using the Logservice_Messages_create MCP tool.
 4. Verify that the incident's status automatically transitions to "Resolution added by Agent" upon your message creation.
 ```
 
@@ -347,17 +347,17 @@ Perform an autonomous diagnosis for the next active Cloud Foundry incident follo
 Use this prompt if you want zero ambiguity about which MCP tools to invoke for a specific incident:
 ```text
 Perform an autonomous diagnosis for incident 099ea6eb-c7c0-4b50-8fb0-ca5412c0f538 following these strict requirements:
-1. Use ONLY the MCP server tools (IncidentService_Incidents_query with filter { field: 'ID', op: 'eq', value: '099ea6eb-c7c0-4b50-8fb0-ca5412c0f538' }, IncidentService_TraceEvents_query, IncidentService_ImpactedServices_query) to fetch telemetry.
+1. Use ONLY the MCP server tools (Logservice_Logs_query with filter { field: 'ID', op: 'eq', value: '099ea6eb-c7c0-4b50-8fb0-ca5412c0f538' }, Logservice_TraceEvents_query, Logservice_ImpactedServices_query) to fetch telemetry.
 2. Formulate a prescriptive remediation playbook (exit codes, cf logs, cf events, scaling, and restart steps) using the cf-log-trace-agent skill catalog.
-3. Post the playbook as a discussion comment using the IncidentService_Messages_create MCP tool.
+3. Post the playbook as a discussion comment using the Logservice_Messages_create MCP tool.
 4. Verify that the incident's status automatically transitions to "Resolution added by Agent" upon your message creation.
 ```
 
 ### Protocol Flow
-1. **Discover**: Agent queries `IncidentService_Incidents_query` strictly via MCP for active incidents.
-2. **Inspect**: Agent queries `IncidentService_TraceEvents_query` and `IncidentService_ImpactedServices_query` via MCP.
+1. **Discover**: Agent queries `Logservice_Logs_query` strictly via MCP for active Logs.
+2. **Inspect**: Agent queries `Logservice_TraceEvents_query` and `Logservice_ImpactedServices_query` via MCP.
 3. **Reason**: Agent consults the Cloud Foundry Error Resolution Catalog (`cf-log-trace-agent` skill) to formulate a prescriptive playbook.
-4. **Propose**: Agent calls `IncidentService_Messages_create` via MCP to append the playbook to discussions.
+4. **Propose**: Agent calls `Logservice_Messages_create` via MCP to append the playbook to discussions.
 5. **Auto-Transition**: The service automatically transitions incident status to `"Resolution added by Agent"`.
 6. **Verify & Close**: SRE operator inspects the playbook and confirms resolution.
 

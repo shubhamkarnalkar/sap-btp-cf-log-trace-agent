@@ -13,8 +13,8 @@
 | **03** | Solution Overview (`cf-log-trace-agent`) | Solution | CAP + MCP Architecture, Telemetry Pipeline, AI Automation |
 | **04** | End-to-End System Architecture | Technical | Data flows from CF v3 APIs -> CAP -> HANA/SQLite -> MCP -> AI Agents |
 | **05** | Resilient 4-Tier OAuth Authentication Engine | Security | Bearer Token, Password Grant, Client Credentials, CF CLI Session Bridge |
-| **06** | Normalized Domain Schema (`db/schema.cds`) | Data Modeling | Incidents, ImpactedServices, TraceEvents, Messages |
-| **07** | Automated Telemetry Ingestion (`srv/incidents.ts`)| Implementation | CAP `before('READ')` hooks, `/v3/apps` & `/v3/audit_events` normalization |
+| **06** | Normalized Domain Schema (`db/schema.cds`) | Data Modeling | Logs, ImpactedServices, TraceEvents, Messages |
+| **07** | Automated Telemetry Ingestion (`srv/Logs.ts`)| Implementation | CAP `before('READ')` hooks, `/v3/apps` & `/v3/audit_events` normalization |
 | **08** | Model Context Protocol (MCP) AI Server | AI / Agentic | `@cap-js/mcp` configuration, tool generation, `/mcp` endpoints |
 | **09** | Autonomous SRE Incident Remediation | AI Workflow | 4-step autonomous diagnosis & self-healing loop |
 | **10** | SAP Fiori Elements Enterprise UX | UX / Front-end | UI annotations, semantic status criticality, 360° Object Page |
@@ -49,7 +49,7 @@
 >
 > *As enterprises scale their microservices on Cloud Foundry, managing telemetry and resolving critical downtime has become increasingly complex. This project bridges raw enterprise telemetry with generative AI using two state-of-the-art standards: the **SAP Cloud Application Programming Model (CAP)** and the **Model Context Protocol (MCP)**.*
 >
-> *The result is a system where incidents are automatically ingested, normalized, presented in SAP Fiori, and directly actionable by Autonomous AI Agents such as Claude, Gemini, or custom assistants without human bottlenecks."*
+> *The result is a system where Logs are automatically ingested, normalized, presented in SAP Fiori, and directly actionable by Autonomous AI Agents such as Claude, Gemini, or custom assistants without human bottlenecks."*
 
 ---
 
@@ -74,7 +74,7 @@ graph TD
 ### Key Pain Points
 1. **Disparate Event Silos**: Application lifecycle changes (`/v3/apps`), audit event streams (`/v3/audit_events`), and container logs are scattered across different endpoints and Cloud Foundry spaces.
 2. **High Mean Time to Resolution (MTTR)**: Operators spend hours running `cf logs`, inspecting HTTP 503/502 router errors, and manually correlating trace events with impacted microservices.
-3. **The AI Tooling Disconnect**: General-purpose LLMs cannot inspect or resolve Cloud Foundry incidents because they lack structured schema definitions and standardized tool-calling protocols.
+3. **The AI Tooling Disconnect**: General-purpose LLMs cannot inspect or resolve Cloud Foundry Logs because they lack structured schema definitions and standardized tool-calling protocols.
 
 ### Speaker Script & Talking Points
 > *"Every developer or DevOps engineer who has operated on Cloud Foundry knows the pain: an alert fires, and you immediately open three terminals. You run `cf logs app-name --recent`, search through BTP Cockpit audit logs, and try to piece together what happened.*
@@ -89,15 +89,15 @@ graph TD
 - **Automated Telemetry Ingestion**: Seamless lifecycle hook intercepting queries to dynamically pull live CF state and audit streams without requiring separate polling infrastructure.
 - **4-Tier Resilient Authentication**: Failsafe authentication engine capable of authenticating across local developer sessions, test environments, and hardened BTP production landscapes.
 - **Normalized CDS Incident Model**: Rich relational domain model capturing correlated request IDs, error classifications, impacted services, and audit history.
-- **Model Context Protocol (MCP) Gateway**: Standardized JSON-RPC server exposing CAP entities as autonomous AI tools (`incidents_query`, `traceEvents_query`, `incidents_update`).
+- **Model Context Protocol (MCP) Gateway**: Standardized JSON-RPC server exposing CAP entities as autonomous AI tools (`Logs_query`, `traceEvents_query`, `Logs_update`).
 - **Fiori Elements Cockpit**: Out-of-the-box enterprise UI with semantic criticality and comprehensive facets.
 
 ### Speaker Script & Talking Points
 > *"To solve this, we engineered `cf-log-trace-agent`. It serves as a dual-purpose platform:*
 >
-> *First, it is an automated telemetry engine. Whenever incidents are accessed, it syncs directly with Cloud Foundry Controller APIs, analyzes crash patterns, and persists clean, structured incident entities.*
+> *First, it is an automated telemetry engine. Whenever Logs are accessed, it syncs directly with Cloud Foundry Controller APIs, analyzes crash patterns, and persists clean, structured incident entities.*
 >
-> *Second, it acts as an MCP Server. Rather than writing custom glue code for every AI model, we use the Model Context Protocol. Any AI agent supporting MCP can immediately query active incidents, drill down into logs, and post root-cause analyses and remediation recommendations."*
+> *Second, it acts as an MCP Server. Rather than writing custom glue code for every AI model, we use the Model Context Protocol. Any AI agent supporting MCP can immediately query active Logs, drill down into logs, and post root-cause analyses and remediation recommendations."*
 
 ---
 
@@ -112,10 +112,10 @@ flowchart LR
 
     subgraph cf-log-trace-agent [SAP CAP Microservice]
         AUTH["4-Tier Auth Engine<br/>(Bearer / Password / CC / CLI)"]
-        HOOK["before('READ', 'Incidents')<br/>Ingestion Hook"]
+        HOOK["before('READ', 'Logs')<br/>Ingestion Hook"]
         CDS["CDS Persistence<br/>(HANA Cloud / SQLite)"]
         MCP_SRV["MCP Protocol Handler<br/>(@cap-js/mcp)"]
-        ODATA["OData V4 Endpoint<br/>(IncidentService)"]
+        ODATA["OData V4 Endpoint<br/>(Logservice)"]
     end
 
     subgraph Consumer Layer
@@ -166,7 +166,7 @@ flowchart LR
   └── Executes `cf oauth-token` via child_process (Zero config for local development!)
 ```
 
-### Key Implementation Details (`srv/incidents.ts`)
+### Key Implementation Details (`srv/Logs.ts`)
 - Automatically loads credentials from `default.env` with fallback to standard environment variables.
 - Detects SAP BTP `PASSWORD_LOCKED` error descriptions and logs actionable guidance.
 - Leverages local developer CLI sessions when running `cds watch` locally, avoiding manual token copying.
@@ -174,7 +174,7 @@ flowchart LR
 ### Speaker Script & Talking Points
 > *"One of the most frequent friction points in BTP development is token management. If a token expires during local testing or in CI/CD, the entire pipeline breaks.*
 >
-> *To eliminate this, we built a 4-tier authentication fallback hierarchy in `srv/incidents.ts`:*
+> *To eliminate this, we built a 4-tier authentication fallback hierarchy in `srv/Logs.ts`:*
 > *1. If an explicit bearer token is supplied, it's used immediately.*
 > *2. If username and password are provided, it negotiates an OAuth token directly.*
 > *3. If client credentials from an XSUAA service key exist, it uses OAuth client credentials.*
@@ -187,13 +187,15 @@ flowchart LR
 ## Slide 6: Normalized Domain Schema (`db/schema.cds`)
 
 ```cds
-namespace shubh.incidents;
+namespace shubh.logs_trace_agent;
 using { cuid, managed } from '@sap/cds/common';
 
-entity Incidents : cuid, managed {
+entity Logs : cuid, managed {
+    applicationId       : String(100);
     targetSpace         : String(100);
     correlatedRequestId : String(100);
-    status              : String(20) default 'OPEN';
+    statusCode          : Integer;
+    status              : String(50) default 'OPEN';
     errorCategory       : String(50);
     rootCauseStatement  : LargeString;
     remediationAction   : LargeString;
@@ -203,13 +205,13 @@ entity Incidents : cuid, managed {
 }
 
 entity ImpactedServices : cuid {
-    incident    : Association to Incidents;
+    incident    : Association to Logs;
     serviceName : String(100);
     instanceId  : String(50);
 }
 
 entity TraceEvents : cuid {
-    incident    : Association to Incidents;
+    incident    : Association to Logs;
     timestamp   : Timestamp;
     component   : String(50); // RTR, CELL, APP
     serviceName : String(100);
@@ -219,7 +221,7 @@ entity TraceEvents : cuid {
 }
 
 entity Messages : cuid, managed {
-    incident : Association to Incidents;
+    incident : Association to Logs;
     text     : LargeString;
 }
 ```
@@ -231,10 +233,10 @@ entity Messages : cuid, managed {
 
 ---
 
-## Slide 7: Automated Lifecycle Synchronization (`srv/incidents.ts`)
+## Slide 7: Automated Lifecycle Synchronization (`srv/Logs.ts`)
 
 ```typescript
-this.before('READ', 'Incidents', async (req: cds.Request) => {
+this.before('READ', 'Logs', async (req: cds.Request) => {
     const token = await getCloudFoundryToken();
     if (!token) return;
 
@@ -259,7 +261,7 @@ this.before('READ', 'Incidents', async (req: cds.Request) => {
             }],
             messages: [{ text: `Automatically created from CF app status event for ${app.name}` }]
         };
-        await cds.tx(req).run(UPSERT.into(Incidents).entries(incidentRecord));
+        await cds.tx(req).run(UPSERT.into(Logs).entries(incidentRecord));
     }
 
     // 2. Ingest CF Audit Logs (/v3/audit_events)
@@ -268,14 +270,14 @@ this.before('READ', 'Incidents', async (req: cds.Request) => {
 ```
 
 ### Pipeline Key Attributes
-- **Idempotency**: Utilizes `UPSERT.into(Incidents)` so multiple sync triggers update existing entities without duplicate record bloat.
+- **Idempotency**: Utilizes `UPSERT.into(Logs)` so multiple sync triggers update existing entities without duplicate record bloat.
 - **Heuristic Categorization**: System automatically flags `crash`, `delete`, and `fail` events as `INVESTIGATING` with status code 404 or 503, prioritizing them for human and AI inspection.
 
 ---
 
 ## Slide 8: Model Context Protocol (MCP) AI Server
 
-### Configuration in `package.json` & `srv/incidents.cds`
+### Configuration in `package.json` & `srv/Logs.cds`
 ```json
 {
   "cds": {
@@ -283,23 +285,23 @@ this.before('READ', 'Incidents', async (req: cds.Request) => {
       "name": "cf-log-trace-agent-mcp",
       "wrap_entities_to_actions": true,
       "wrap_entity_modes": ["query", "get", "create", "update", "delete"],
-      "instructions": "MCP Server for Cloud Foundry Log & Trace Incident Agent. Enables querying, creating, updating, and deleting incidents, trace events, impacted services, and messages."
+      "instructions": "MCP Server for Cloud Foundry Log & Trace Incident Agent. Enables querying, creating, updating, and deleting Logs, trace events, impacted services, and messages."
     }
   }
 }
 ```
 
 ### Auto-Generated MCP Toolset
-1. **`incidents_query`**: Searches incident records by status (`INVESTIGATING`, `OPEN`), error category, or space.
-2. **`incidents_get`**: Retrieves deep incident details including child traces and impacted services.
-3. **`incidents_update`**: Enables AI agents to record verified root-cause statements and remediation action plans.
+1. **`Logs_query`**: Searches incident records by status (`INVESTIGATING`, `OPEN`), error category, or space.
+2. **`Logs_get`**: Retrieves deep incident details including child traces and impacted services.
+3. **`Logs_update`**: Enables AI agents to record verified root-cause statements and remediation action plans.
 4. **`traceEvents_query`**: Allows granular inspection of component traces (`RTR`, `CELL`, `APP`).
 5. **`messages_create`**: Appends audit commentary and diagnostic explanations directly to the incident record.
 
 ### Speaker Script & Talking Points
 > *"Now we arrive at the Model Context Protocol integration. By combining the `@cap-js/mcp` and `@gavdi/cap-mcp` plugins with the `wrap_entities_to_actions` flag, CAP compiles our CDS entities into native MCP tools.*
 >
-> *When an AI Agent queries our service endpoint at `/mcp`, it receives a machine-readable schema describing every entity and method. The AI doesn't need custom prompt instructions on how to call our database; it simply executes `incidents_query` or `incidents_update` as standard JSON-RPC tool calls."*
+> *When an AI Agent queries our service endpoint at `/mcp`, it receives a machine-readable schema describing every entity and method. The AI doesn't need custom prompt instructions on how to call our database; it simply executes `Logs_query` or `Logs_update` as standard JSON-RPC tool calls."*
 
 ---
 
@@ -314,12 +316,12 @@ sequenceDiagram
     participant CF as Cloud Foundry Controller
 
     SRE->>AI: "Investigate high latency and service failures in DEV space"
-    AI->>MCP: Call tool: incidents_query(filter: "status eq 'INVESTIGATING'")
+    AI->>MCP: Call tool: Logs_query(filter: "status eq 'INVESTIGATING'")
     MCP-->>AI: Returns Incident [ID: 8fa420, App: risk-service, Error: CF_APP_STATUS]
     AI->>MCP: Call tool: traceEvents_query(incident_ID: 8fa420)
     MCP-->>AI: Returns Traces [Component: CELL, StatusCode: 503, Message: "Out of memory"]
     AI->>AI: Synthesize Root Cause: Container crashed due to 256MB memory cap
-    AI->>MCP: Call tool: incidents_update(ID: 8fa420, rootCause: "OOM Kill (Exit 137)", remediation: "Run: cf scale risk-service -m 1024M")
+    AI->>MCP: Call tool: Logs_update(ID: 8fa420, rootCause: "OOM Kill (Exit 137)", remediation: "Run: cf scale risk-service -m 1024M")
     AI->>MCP: Call tool: messages_create(text: "Autonomous diagnostic complete. Remediation proposed.")
     MCP-->>AI: Update Confirmed
     AI->>SRE: "Incident analyzed. Risk service crashed due to OOM. Recommended fix: scale memory to 1024M."

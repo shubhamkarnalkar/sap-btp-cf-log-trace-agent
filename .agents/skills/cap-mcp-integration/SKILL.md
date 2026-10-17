@@ -55,18 +55,18 @@ Configure global MCP server options under the `cds` block:
 Annotate services and entities to expose them to AI agents with specific CRUD capabilities:
 
 ```cds
-service IncidentService {
+service Logservice {
     @mcp: {
-        name       : 'incidents',
-        description: 'Cloud Foundry log & trace incidents with root cause analysis',
+        name       : 'Logs',
+        description: 'Cloud Foundry log & trace Logs with root cause analysis',
         resource   : true
     }
     @Capabilities : { Insertable : true, Updatable : true, Deletable : true }
-    entity Incidents as projection on sch.Incidents;
+    entity Logs as projection on sch.Logs;
 }
 
 // Enable wrapper tools for MCP AI Agent CRUD operations
-annotate IncidentService.Incidents with @mcp.wrap: {
+annotate Logservice.Logs with @mcp.wrap: {
     tools: true,
     modes: ['query', 'get', 'create', 'update', 'delete'],
     hint: 'Use to query, create, update, or delete incident records'

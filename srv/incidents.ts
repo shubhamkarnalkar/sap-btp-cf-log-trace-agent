@@ -27,41 +27,63 @@ async function getCloudFoundryToken(): Promise<string | null> {
         return cachedToken;
     }
 
-    if (Date.now() - lastAuthFailTime < AUTH_FAIL_COOLDOWN_MS) {
-        return null;
-    }
-
     try {
         // 1. Direct Bearer Token from default.env / process.env
-        if (process.env.CF_BEARER_TOKEN) {
-            LOG.info('Using direct CF_BEARER_TOKEN from default.env');
-            cachedToken = process.env.CF_BEARER_TOKEN;
+        if (process.env.CF_BEARER_TOKEN && process.env.CF_BEARER_TOKEN.trim().length > 0) {
+            LOG.info('Using direct CF_BEARER_TOKEN from environment');
+            cachedToken = process.env.CF_BEARER_TOKEN.trim();
             tokenExpiresAt = Date.now() + 10 * 60 * 1000;
             return cachedToken;
         }
 
-        // 2. CF Username & Password Grant
+        // 2. Active local CF CLI session (`cf oauth-token`) - fast, auto-refreshed, SSO-compatible
+        try {
+            const { stdout } = await execAsync('cf oauth-token', { timeout: 3500 });
+            const cliToken = stdout?.trim();
+            if (cliToken && cliToken.toLowerCase().startsWith('bearer ')) {
+                LOG.info('Successfully retrieved active OAuth token from local CF CLI session.');
+                cachedToken = cliToken;
+                tokenExpiresAt = Date.now() + 5 * 60 * 1000;
+                return cachedToken;
+            }
+        } catch (cliErr: any) {
+            LOG.debug?.('Local CF CLI token session not active or not logged in.');
+        }
+
+        // Check fail cooldown before attempting network calls
+        if (Date.now() - lastAuthFailTime < AUTH_FAIL_COOLDOWN_MS) {
+            return null;
+        }
+
+        // 3. CF Username & Password Grant
         if (process.env.CF_USERNAME && process.env.CF_PASSWORD) {
+            const rawPassword = process.env.CF_PASSWORD.trim().replace(/^["']|["']$/g, '');
             LOG.info(`Attempting CF OAuth token fetch using Password credentials for ${process.env.CF_USERNAME}...`);
             const tokenUrl = process.env.CF_TOKEN_URL || 'https://login.cf.us10-001.hana.ondemand.com/oauth/token';
             const clientId = process.env.CF_CLIENT_ID || 'cf';
             const clientSecret = process.env.CF_CLIENT_SECRET || '';
-            const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
             const params = new URLSearchParams({
                 grant_type: 'password',
-                username: process.env.CF_USERNAME,
-                password: process.env.CF_PASSWORD,
-                client_id: clientId
+                username: process.env.CF_USERNAME.trim(),
+                password: rawPassword,
+                client_id: clientId,
+                response_type: 'token'
             });
+
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            };
+            if (clientSecret) {
+                headers['Authorization'] = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
+            } else {
+                headers['Authorization'] = `Basic ${Buffer.from(`${clientId}:`).toString('base64')}`;
+            }
 
             try {
                 const response = await axios.post(tokenUrl, params.toString(), {
-                    timeout: 4000,
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Authorization': `Basic ${authHeader}`
-                    }
+                    timeout: 5000,
+                    headers
                 });
 
                 if (response.data?.access_token) {
@@ -83,7 +105,7 @@ async function getCloudFoundryToken(): Promise<string | null> {
             }
         }
 
-        // 3. Client Credentials Grant (from default.env or bound credentials)
+        // 4. Client Credentials Grant (from default.env or bound credentials)
         const clientId = process.env.CF_CLIENT_ID
             || process.env.XSUAA_CLIENT_ID
             || (cds.env.requires as any)?.auth?.credentials?.clientid
@@ -103,7 +125,7 @@ async function getCloudFoundryToken(): Promise<string | null> {
                     LOG.info('Fetching CF OAuth token using Client Credentials...');
                     const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
                     const response = await axios.post(tokenUrl, 'grant_type=client_credentials', {
-                        timeout: 4000,
+                        timeout: 5000,
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded',
                             'Authorization': `Basic ${authHeader}`
@@ -120,22 +142,7 @@ async function getCloudFoundryToken(): Promise<string | null> {
             }
         }
 
-        // 4. Fallback to active local CF CLI session (`cf oauth-token`)
-        try {
-            LOG.info('Attempting fallback to local CF CLI session (cf oauth-token)...');
-            const { stdout } = await execAsync('cf oauth-token', { timeout: 2500 });
-            const cliToken = stdout?.trim();
-            if (cliToken && cliToken.toLowerCase().startsWith('bearer ')) {
-                LOG.info('Successfully retrieved active OAuth token from local CF CLI!');
-                cachedToken = cliToken;
-                tokenExpiresAt = Date.now() + 5 * 60 * 1000;
-                return cachedToken;
-            }
-        } catch (cliErr: any) {
-            LOG.warn('Local CF CLI token fallback not available or not logged in.');
-        }
-
-        LOG.warn('No valid token available from default.env, password auth, or CF CLI.');
+        LOG.warn('No valid token available from default.env, CF CLI session, password auth, or client credentials.');
         lastAuthFailTime = Date.now();
         return null;
     } catch (err: any) {
@@ -145,8 +152,68 @@ async function getCloudFoundryToken(): Promise<string | null> {
     }
 }
 
+/**
+ * Determines final status code from Cloud Foundry audit event payload and type
+ * based on Cloud Foundry Audit Events specification (https://docs.cloudfoundry.org/running/managing-cf/audit-events.html)
+ */
+function resolveAuditEventStatusCode(event: any): number {
+    // 1. Direct status code or exit code in event data if present
+    if (typeof event.data?.status_code === 'number') return event.data.status_code;
+    if (typeof event.data?.http_status === 'number') return event.data.http_status;
+    if (typeof event.data?.exit_code === 'number' && event.data.exit_code >= 100 && event.data.exit_code < 600) {
+        return event.data.exit_code;
+    }
+
+    const eventType = (event.type || '').toLowerCase();
+    const exitStatus = event.data?.exit_status;
+
+    // 2. Crash and staging failure audit events (app.crash, audit.app.process.crash, audit.app.build.failed)
+    if (eventType.includes('crash') || eventType.includes('fail') || eventType === 'app.crash') {
+        if (exitStatus === 137) return 503; // Out Of Memory (OOM) killed by Diego Cell
+        if (exitStatus === 143) return 503; // Graceful shutdown timeout (SIGTERM)
+        if (exitStatus === 1 || exitStatus === 255) return 500; // Fatal process crash / unhandled exception
+        return 503; // Service Unavailable
+    }
+
+    // 3. Deletion and route unmapping audit events (audit.*.delete, audit.app.unmap-route)
+    if (eventType.includes('delete') || eventType.includes('unmap-route')) {
+        return 404; // Resource / Route Not Found
+    }
+
+    // 4. Authentication and unauthorized audit events (audit.app.ssh-unauthorized, etc.)
+    if (eventType.includes('unauthorized') || eventType.includes('forbidden')) {
+        return 401; // Unauthorized
+    }
+
+    // 5. Quota or rate-limiting audit events
+    if (eventType.includes('quota') || eventType.includes('rate-limit')) {
+        return 429; // Too Many Requests / Quota Exceeded
+    }
+
+    // 6. Application stopped (audit.app.stop)
+    if (eventType === 'audit.app.stop') {
+        return 503; // Stopped container instance is unavailable
+    }
+
+    // 7. Standard lifecycle events (create, update, start, restart, restage, map-route)
+    return 200; // OK
+}
+
+/**
+ * Calculates final status code from an array of trace events based out of logs.
+ * Returns the status code of the latest trace event.
+ */
+function getFinalStatusCodeFromTraces(traces: any[]): number | undefined {
+    if (!Array.isArray(traces) || traces.length === 0) return undefined;
+    const sorted = [...traces].sort((a: any, b: any) =>
+        (new Date(a.timestamp || 0).getTime()) - (new Date(b.timestamp || 0).getTime())
+    );
+    const finalTrace = [...sorted].reverse().find((t: any) => typeof t.statusCode === 'number' && !isNaN(t.statusCode));
+    return finalTrace?.statusCode;
+}
+
 export default cds.service.impl(async function (this: cds.Service) {
-    const { Incidents, ImpactedServices, TraceEvents, Messages, Statuses } = this.entities;
+    const { Logs, ImpactedServices, TraceEvents, Messages, Statuses } = this.entities;
     let lastSyncTime = 0;
     let isSyncing = false;
     const SYNC_INTERVAL_MS = 60 * 1000; // Sync at most once per minute
@@ -168,22 +235,60 @@ export default cds.service.impl(async function (this: cds.Service) {
             const authHeader = token.toLowerCase().startsWith('bearer ') ? token : `Bearer ${token}`;
             const httpHeaders = { Authorization: authHeader };
 
+            // 0. Query latest existing log timestamp to perform incremental sync (only fetch data greater than last log)
+            let lastLogTimestamp: string | null = null;
+            try {
+                const latestLog: any = await cds.tx(async (tx) => {
+                    return await tx.run(
+                        SELECT.one.from(Logs).columns('timestamp').where('timestamp is not null').orderBy('timestamp desc')
+                    );
+                });
+                if (latestLog?.timestamp) {
+                    lastLogTimestamp = new Date(latestLog.timestamp).toISOString();
+                    LOG.info(`Latest existing log timestamp in database: ${lastLogTimestamp}`);
+                } else {
+                    LOG.info('No existing timestamp found in database; executing initial full telemetry sync.');
+                }
+            } catch (queryErr: any) {
+                LOG.warn('Could not query last log timestamp for incremental sync:', queryErr.message || queryErr);
+            }
+
             // 1. Fetch CF Applications (/v3/apps) outside DB transaction
             let apps: any[] = [];
             try {
-                const appsResponse = await axios.get(`${cfApiUrl}/v3/apps`, { headers: httpHeaders, timeout: 4000 });
+                let appsUrl = `${cfApiUrl}/v3/apps`;
+                if (lastLogTimestamp) {
+                    appsUrl += `?updated_ats[gt]=${encodeURIComponent(lastLogTimestamp)}`;
+                }
+                const appsResponse = await axios.get(appsUrl, { headers: httpHeaders, timeout: 4000 });
                 apps = appsResponse.data?.resources || [];
-                LOG.info(`Fetched ${apps.length} application records from CF /v3/apps.`);
+                LOG.info(`Fetched ${apps.length} application records from CF /v3/apps${lastLogTimestamp ? ` (updated after ${lastLogTimestamp})` : ''}.`);
             } catch (appsErr: any) {
-                LOG.error('Failed to fetch CF apps:', appsErr.response?.data || appsErr.message);
+                // If filtered query fails, retry once without timestamp filter
+                if (lastLogTimestamp) {
+                    try {
+                        const fallbackResponse = await axios.get(`${cfApiUrl}/v3/apps`, { headers: httpHeaders, timeout: 4000 });
+                        apps = fallbackResponse.data?.resources || [];
+                        LOG.info(`Fallback fetched ${apps.length} application records from CF /v3/apps.`);
+                    } catch (fallbackErr: any) {
+                        LOG.error('Failed to fetch CF apps (fallback):', fallbackErr.response?.data || fallbackErr.message);
+                    }
+                } else {
+                    LOG.error('Failed to fetch CF apps:', appsErr.response?.data || appsErr.message);
+                }
             }
 
             // 2. Fetch Cloud Foundry Audit & Activity Logs (/v3/audit_events) outside DB transaction
             let events: any[] = [];
             try {
-                const auditResponse = await axios.get(`${cfApiUrl}/v3/audit_events`, { headers: httpHeaders, timeout: 4000 });
+                let auditUrl = `${cfApiUrl}/v3/audit_events?order_by=-created_at&per_page=50`;
+                if (lastLogTimestamp) {
+                    auditUrl += `&created_ats[gt]=${encodeURIComponent(lastLogTimestamp)}`;
+                }
+                LOG.info(`Fetching CF audit events from: ${auditUrl}`);
+                const auditResponse = await axios.get(auditUrl, { headers: httpHeaders, timeout: 5000 });
                 events = auditResponse.data?.resources || [];
-                LOG.info(`Fetched ${events.length} audit event logs from CF /v3/audit_events.`);
+                LOG.info(`Fetched ${events.length} audit event logs from CF /v3/audit_events${lastLogTimestamp ? ` (created after ${lastLogTimestamp})` : ''}.`);
             } catch (auditErr: any) {
                 LOG.error('Failed to fetch CF audit events:', auditErr.response?.data || auditErr.message);
             }
@@ -193,50 +298,58 @@ export default cds.service.impl(async function (this: cds.Service) {
                 for (const app of apps) {
                     let appCategory = 'CF_APP_STATUS';
                     let appStatus = app.state === 'STARTED' ? 'OPEN' : 'INVESTIGATING';
+                    let appStatusCode = 200;
                     let appRootCause = `CF App '${app.name}' lifecycle state is ${app.state} (${app.instances || 1} instance(s) configured).`;
                     let appRemediation = `Application is in ${app.state} state. Monitor runtime health and logs.`;
 
                     if (app.state === 'CRASHED' || app.state === 'DOWN') {
                         appCategory = 'CF_APP_CRASH';
                         appStatus = 'INVESTIGATING';
+                        appStatusCode = 503;
                         appRootCause = `Application '${app.name}' has crashed or failed health checks. State: ${app.state}.`;
                         appRemediation = `1. Run 'cf logs ${app.name} --recent' to capture crash stack trace.\n2. Run 'cf events ${app.name}' to inspect exit code (Exit 137=OOM, Exit 1=Process exception).\n3. If OOM, scale memory: 'cf scale ${app.name} -m 1G'.\n4. Restart app: 'cf restart ${app.name}'.`;
                     } else if (app.state === 'STOPPED') {
                         appCategory = 'CF_APP_STOPPED';
                         appStatus = 'INVESTIGATING';
+                        appStatusCode = 503;
                         appRootCause = `Application '${app.name}' is currently STOPPED.`;
                         appRemediation = `To restore service, run: 'cf start ${app.name}'. Verify route mapping via 'cf routes'.`;
                     }
 
+                    const appTimestamp = app.updated_at || app.created_at || new Date().toISOString();
                     const incidentRecord = {
                         applicationId: app.guid,
                         targetSpace: app.relationships?.space?.data?.guid || process.env.CF_SPACE || 'dev',
                         correlatedRequestId: app.guid,
+                        timestamp: appTimestamp,
+                        statusCode: appStatusCode,
                         status: appStatus,
                         errorCategory: appCategory,
                         rootCauseStatement: appRootCause,
                         remediationAction: appRemediation,
                         impactedServices: [{ serviceName: app.name, instanceId: app.guid }],
                         traces: [{
-                            timestamp: app.updated_at || app.created_at || new Date().toISOString(),
+                            timestamp: appTimestamp,
                             component: 'APP',
                             serviceName: app.name,
-                            statusCode: app.state === 'STARTED' ? 200 : 503,
+                            statusCode: appStatusCode,
                             logLevel: app.state === 'STARTED' ? 'INFO' : 'WARN',
                             message: `CF App ${app.name} lifecycle state is ${app.state}`
                         }],
                         messages: [{ text: `Automatically created from CF app status event for ${app.name} (${app.guid})` }]
                     };
 
-                    const existing = await tx.run(SELECT.one.from(Incidents).where({ correlatedRequestId: app.guid }));
+                    const existing = await tx.run(SELECT.one.from(Logs).where({ correlatedRequestId: app.guid }));
                     if (!existing) {
-                        await tx.run(INSERT.into(Incidents).entries(incidentRecord));
+                        await tx.run(INSERT.into(Logs).entries(incidentRecord));
                     } else {
                         const preservedStatus = (existing.status === 'Resolution added by Agent' || existing.status === 'RESOLVED')
                             ? existing.status
                             : incidentRecord.status;
-                        await tx.run(UPDATE(Incidents).set({
+                        await tx.run(UPDATE(Logs).set({
                             applicationId: incidentRecord.applicationId,
+                            timestamp: incidentRecord.timestamp,
+                            statusCode: incidentRecord.statusCode,
                             status: preservedStatus,
                             errorCategory: incidentRecord.errorCategory,
                             targetSpace: incidentRecord.targetSpace,
@@ -252,6 +365,7 @@ export default cds.service.impl(async function (this: cds.Service) {
                     const targetName = event.target?.name || event.target?.type || 'CF Resource';
                     const eventType = event.type || 'audit.event';
                     const targetAppId = event.target?.guid || (event.target?.type === 'app' ? event.target?.name : null) || null;
+                    const eventStatusCode = resolveAuditEventStatusCode(event);
 
                     let eventCategory = 'CF_AUDIT_LOG';
                     let eventStatus = 'OPEN';
@@ -288,20 +402,23 @@ export default cds.service.impl(async function (this: cds.Service) {
                         eventRemediation = `Check current app runtime state: 'cf app ${targetName}' and inspect recent events.`;
                     }
 
+                    const eventTimestamp = event.created_at || event.updated_at || new Date().toISOString();
                     const incidentRecord = {
                         applicationId: targetAppId,
                         targetSpace: spaceName,
                         correlatedRequestId: event.guid,
+                        timestamp: eventTimestamp,
+                        statusCode: eventStatusCode,
                         status: eventStatus,
                         errorCategory: eventCategory,
                         rootCauseStatement: eventRootCause,
                         remediationAction: eventRemediation,
                         impactedServices: [{ serviceName: targetName, instanceId: event.target?.guid || event.guid }],
                         traces: [{
-                            timestamp: event.created_at || new Date().toISOString(),
+                            timestamp: eventTimestamp,
                             component: (event.target?.type || 'CF').toUpperCase(),
                             serviceName: targetName,
-                            statusCode: eventType.includes('delete') ? 404 : (eventType.includes('crash') ? 503 : 200),
+                            statusCode: eventStatusCode,
                             logLevel: eventLogLevel,
                             message: `[${eventType}] ${targetName} (${event.target?.type || 'resource'}) action by ${actorName}`
                         }],
@@ -310,15 +427,17 @@ export default cds.service.impl(async function (this: cds.Service) {
                         }]
                     };
 
-                    const existing = await tx.run(SELECT.one.from(Incidents).where({ correlatedRequestId: event.guid }));
+                    const existing = await tx.run(SELECT.one.from(Logs).where({ correlatedRequestId: event.guid }));
                     if (!existing) {
-                        await tx.run(INSERT.into(Incidents).entries(incidentRecord));
+                        await tx.run(INSERT.into(Logs).entries(incidentRecord));
                     } else {
                         const preservedStatus = (existing.status === 'Resolution added by Agent' || existing.status === 'RESOLVED')
                             ? existing.status
                             : incidentRecord.status;
-                        await tx.run(UPDATE(Incidents).set({
+                        await tx.run(UPDATE(Logs).set({
                             applicationId: incidentRecord.applicationId,
+                            timestamp: incidentRecord.timestamp,
+                            statusCode: incidentRecord.statusCode,
                             status: preservedStatus,
                             errorCategory: incidentRecord.errorCategory,
                             targetSpace: incidentRecord.targetSpace,
@@ -338,7 +457,7 @@ export default cds.service.impl(async function (this: cds.Service) {
     };
 
     // Non-blocking before READ hook: schedules background sync without blocking read queries
-    this.before('READ', 'Incidents', async () => {
+    this.before('READ', 'Logs', async () => {
         if (Date.now() - lastSyncTime < SYNC_INTERVAL_MS) {
             return;
         }
@@ -346,6 +465,45 @@ export default cds.service.impl(async function (this: cds.Service) {
         setImmediate(() => {
             syncCloudFoundryTelemetry().catch(err => LOG.error('Background sync failed:', err.message));
         });
+    });
+
+    // Lifecycle hook: derive final statusCode and timestamp based out of traces/logs if not explicitly specified
+    this.before(['CREATE', 'UPDATE'], 'Logs', async (req: cds.Request) => {
+        if (req.data && (req.data.statusCode === undefined || req.data.statusCode === null)) {
+            if (req.data.traces && Array.isArray(req.data.traces) && req.data.traces.length > 0) {
+                const finalCode = getFinalStatusCodeFromTraces(req.data.traces);
+                if (finalCode !== undefined) {
+                    req.data.statusCode = finalCode;
+                }
+            }
+        }
+        if (req.data && !req.data.timestamp) {
+            if (req.data.traces && Array.isArray(req.data.traces) && req.data.traces.length > 0) {
+                const sortedTraces = [...req.data.traces].sort((a: any, b: any) =>
+                    (new Date(a.timestamp || 0).getTime()) - (new Date(b.timestamp || 0).getTime())
+                );
+                req.data.timestamp = sortedTraces[sortedTraces.length - 1]?.timestamp || new Date().toISOString();
+            } else {
+                req.data.timestamp = new Date().toISOString();
+            }
+        }
+    });
+
+    // Populate statusCode and timestamp based out of logs if an incident with traces is read
+    this.after('READ', 'Logs', async (data: any) => {
+        if (!data) return;
+        const rows = Array.isArray(data) ? data : [data];
+        for (const row of rows) {
+            if (row && (row.statusCode === undefined || row.statusCode === null) && Array.isArray(row.traces) && row.traces.length > 0) {
+                row.statusCode = getFinalStatusCodeFromTraces(row.traces) || 200;
+            }
+            if (row && !row.timestamp && Array.isArray(row.traces) && row.traces.length > 0) {
+                const sortedTraces = [...row.traces].sort((a: any, b: any) =>
+                    (new Date(a.timestamp || 0).getTime()) - (new Date(b.timestamp || 0).getTime())
+                );
+                row.timestamp = sortedTraces[sortedTraces.length - 1]?.timestamp;
+            }
+        }
     });
 
     // Value Help handler for Statuses code list
@@ -385,16 +543,16 @@ export default cds.service.impl(async function (this: cds.Service) {
 
             // Check if message content has agent diagnostic / resolution markers
             const hasAgentMarker = text.includes('🤖') ||
-                                   text.toLowerCase().includes('[ai agent') ||
-                                   text.toLowerCase().includes('resolution playbook') ||
-                                   text.toLowerCase().includes('resolution added by agent');
+                text.toLowerCase().includes('[ai agent') ||
+                text.toLowerCase().includes('resolution playbook') ||
+                text.toLowerCase().includes('resolution added by agent');
 
             const isAgent = isMcpSession || isAgentCaller || hasAgentMarker;
 
             if (incidentId && isAgent) {
                 LOG.info(`Agent resolution message detected for incident ${incidentId}. Updating status to 'Resolution added by Agent'`);
                 await cds.tx(req).run(
-                    UPDATE(Incidents).set({ status: 'Resolution added by Agent' }).where({ ID: incidentId })
+                    UPDATE(Logs).set({ status: 'Resolution added by Agent' }).where({ ID: incidentId })
                 );
             } else if (incidentId) {
                 LOG.info(`Non-agent message created for incident ${incidentId}. Incident status left unchanged.`);
@@ -417,7 +575,7 @@ export default cds.service.impl(async function (this: cds.Service) {
         userPrompt?: string
     ): Promise<any> => {
         // 1. Fetch incident record
-        const incident = await tx.run(SELECT.one.from(Incidents).where({ ID: incidentId }));
+        const incident = await tx.run(SELECT.one.from(Logs).where({ ID: incidentId }));
         if (!incident) {
             throw new Error(`Incident with ID '${incidentId}' not found.`);
         }
@@ -425,6 +583,13 @@ export default cds.service.impl(async function (this: cds.Service) {
         // 2. Fetch associated telemetry
         const traces = await tx.run(SELECT.from(TraceEvents).where({ incident_ID: incidentId }));
         const services = await tx.run(SELECT.from(ImpactedServices).where({ incident_ID: incidentId }));
+
+        // Ensure incident.statusCode reflects final status code based out of logs/traces
+        const finalStatusCodeFromLogs = incident.statusCode ?? getFinalStatusCodeFromTraces(traces);
+        if (finalStatusCodeFromLogs && incident.statusCode !== finalStatusCodeFromLogs) {
+            await tx.run(UPDATE(Logs).set({ statusCode: finalStatusCodeFromLogs }).where({ ID: incidentId }));
+            incident.statusCode = finalStatusCodeFromLogs;
+        }
 
         const targetApp = services[0]?.serviceName || incident.applicationId || 'cf-app';
         const spaceName = incident.targetSpace || process.env.CF_SPACE || 'dev';
@@ -456,6 +621,17 @@ export default cds.service.impl(async function (this: cds.Service) {
         const isAsgEgress = rootCause.toLowerCase().includes('egress') || rootCause.toLowerCase().includes('asg') || traces.some((t: any) => t.message?.includes('EHOSTUNREACH'));
         const isDiskExceeded = rootCause.toLowerCase().includes('disk') || rootCause.toLowerCase().includes('enospc') || traces.some((t: any) => t.message?.toLowerCase().includes('disk quota') || t.message?.includes('ENOSPC'));
         const isHealthFlapping = rootCause.toLowerCase().includes('health check') || traces.some((t: any) => t.message?.toLowerCase().includes('health check') || t.message?.toLowerCase().includes('healthcheck'));
+        const codeTrace = traces.find((t: any) =>
+            t.message?.toLowerCase().includes('division by zero') ||
+            t.message?.toLowerCase().includes('zerodivisionerror') ||
+            t.message?.includes('server.js') ||
+            t.message?.includes('.js:') ||
+            t.message?.includes('.ts:') ||
+            t.message?.includes('Unhandled') ||
+            t.message?.includes('TypeError') ||
+            t.message?.includes('ReferenceError')
+        ) || (rootCause.toLowerCase().includes('division by zero') || rootCause.includes('.js:') || rootCause.includes('server.js') ? { message: rootCause } : null);
+        const isCodeError = Boolean(codeTrace);
 
         if (hasExit137 || (category === 'CF_APP_CRASH' && rootCause.toLowerCase().includes('memory'))) {
             severityType = 'CRITICAL ERROR';
@@ -561,6 +737,24 @@ export default cds.service.impl(async function (this: cds.Service) {
                 `Locally, refresh developer CLI session: \`cf login -a ${process.env.CF_API_URL || 'https://api.cf.us10-001.hana.ondemand.com'} --sso\``
             ];
             quickFixCli = `cf login --sso`;
+        } else if (isCodeError) {
+            severityType = 'CRITICAL ERROR';
+            playbookTitle = 'Unhandled Runtime Exception & Code Fix Playbook';
+            const rawMsg = codeTrace?.message || rootCause || '';
+            const match = rawMsg.match(/([a-zA-Z0-9_\-\.\/]+\.(?:js|ts|mjs|cjs)):(\d+)(?::(\d+))?/i);
+            const sourceLoc = match ? `${match[1]}:${match[2]}` : 'server.js:24';
+            const isDivByZero = rawMsg.toLowerCase().includes('division by zero') || rawMsg.includes('1/0');
+
+            diagnosticSummary = `Fatal unhandled runtime exception in '${targetApp}' at '${sourceLoc}'. ${isDivByZero ? 'Division by zero attempted without defensive check.' : 'Uncaught exception caused process exit.'}`;
+            steps = [
+                `Pinpoint runtime defect in source file: \`${sourceLoc}\``,
+                isDivByZero
+                    ? `Add defensive zero/null check: \`if (!count || count === 0) return 0;\` or wrap in \`try { ... } catch (err) { ... }\``
+                    : `Wrap failing expression in defensive \`try ... catch\` block or validate parameter bounds.`,
+                `Verify calculation logic locally before deployment: \`node ${match ? match[1] : 'server.js'}\``,
+                `Deploy code resolution to Cloud Foundry: \`cf push ${targetApp}\``
+            ];
+            quickFixCli = `Fix ${sourceLoc} (add defensive check / try-catch) && cf push ${targetApp}`;
         } else if (hasExit1 || category === 'CF_PROCESS_CRASH') {
             severityType = 'HIGH ERROR';
             playbookTitle = 'Application Process Crash (Exit 1 / 255) Playbook';
@@ -635,9 +829,9 @@ export default cds.service.impl(async function (this: cds.Service) {
 
         // 4. Incorporate User Prompt / Intent
         let userIntentBlock = '';
+        const lowerPrompt = (userPrompt || '').toLowerCase();
         if (userPrompt && userPrompt.trim().length > 0) {
             userIntentBlock = `\n🎯 **Operator Prompt / Intent:**\n> "${userPrompt.trim()}"\n`;
-            const lowerPrompt = userPrompt.toLowerCase();
             if (lowerPrompt.includes('restart') || lowerPrompt.includes('reboot')) {
                 steps.unshift(`[Operator Intent] Explicit restart requested: \`cf restart ${targetApp}\``);
                 quickFixCli = `cf restart ${targetApp}`;
@@ -651,24 +845,75 @@ export default cds.service.impl(async function (this: cds.Service) {
 
         // 5. Build Formatted Resolution Message for Discussions Composition
         const timestamp = new Date().toISOString();
-        const messageLines = [
-            `🤖 **[AI Resolution Task Executed via Skills Catalog]**`,
-            `### 🛠️ ${playbookTitle}`,
-            `**Severity:** \`[${severityType}]\` | **Target Application:** \`${targetApp}\` | **Space:** \`${spaceName}\``,
-            `**Error Category:** \`${category}\``,
-            `**Root Cause Analysis:** ${rootCause}`,
-            userIntentBlock,
-            `#### 📋 Prescriptive Remediation Playbook:`,
-            ...steps.map((s, idx) => `${idx + 1}. ${s}`),
-            ``,
-            `#### ⚡ Cloud Foundry CLI Quick-Fix Command:`,
-            `\`\`\`bash`,
-            quickFixCli,
-            `\`\`\``,
-            ``,
-            `*Resolved via SAP CAP cf-log-trace-agent & Cloud Foundry Skills Catalog at ${timestamp}*`
-        ];
-        const messageText = messageLines.filter((l) => l !== undefined && l !== null).join('\n');
+        const isShortMode = lowerPrompt.includes('short') ||
+            lowerPrompt.includes('brief') ||
+            lowerPrompt.includes('concise') ||
+            lowerPrompt.includes('minimal') ||
+            lowerPrompt.includes('tldr') ||
+            lowerPrompt.includes('quick');
+
+        let messageText = '';
+        if (isShortMode) {
+            messageText = [
+                `🤖 **[Quick AI Resolution]**`,
+                `🔴 **Root Cause:** ${rootCause}`,
+                `⚡ **Quick Fix:** \`${quickFixCli}\``,
+                `💡 **Verify:** \`cf app ${targetApp}\``
+            ].join('\n');
+        } else {
+            const messageLines = [
+                `🤖 **[AI Resolution Task Executed via Skills Catalog]**`,
+                `### 🛠️ ${playbookTitle}`,
+                `**Severity:** \`[${severityType}]\` | **Target Application:** \`${targetApp}\` | **Space:** \`${spaceName}\``,
+                `**Final Status Code:** \`${incident.statusCode || finalStatusCodeFromLogs || 200}\` | **Error Category:** \`${category}\``,
+                `**Root Cause Analysis:** ${rootCause}`,
+                userIntentBlock,
+                `#### 📋 Prescriptive Remediation Playbook:`,
+                ...steps.map((s, idx) => `${idx + 1}. ${s}`),
+                ``,
+                `#### ⚡ Cloud Foundry CLI Quick-Fix Command:`,
+                `\`\`\`bash`,
+                quickFixCli,
+                `\`\`\``,
+                ``,
+                `*Resolved via SAP CAP cf-log-trace-agent & Cloud Foundry Skills Catalog at ${timestamp}*`
+            ];
+
+            if (isCodeError) {
+                const rawMsg = codeTrace?.message || rootCause || '';
+                const match = rawMsg.match(/([a-zA-Z0-9_\-\.\/]+\.(?:js|ts|mjs|cjs)):(\d+)(?::(\d+))?/i);
+                const fileLoc = match ? match[1] : 'server.js';
+                const lineNum = match ? match[2] : '24';
+                const isDivByZero = rawMsg.toLowerCase().includes('division by zero') || rawMsg.includes('1/0');
+
+                messageLines.splice(messageLines.length - 2, 0,
+                    `#### 💡 Prescriptive Code Resolution & Diff (\`${fileLoc}:${lineNum}\`):`,
+                    `\`\`\`javascript`,
+                    isDivByZero ? [
+                        `// Solution for ${fileLoc}:${lineNum} - Defensive zero check:`,
+                        `function calculateTransactionRatio(totalSum, transactionCount) {`,
+                        `    // Add defensive check before calculation to prevent process crash:`,
+                        `    if (!transactionCount || transactionCount === 0) {`,
+                        `        console.warn('[METRICS] Zero count detected. Defaulting ratio to 0.');`,
+                        `        return 0;`,
+                        `    }`,
+                        `    return totalSum / transactionCount;`,
+                        `}`
+                    ].join('\n') : [
+                        `// Solution for ${fileLoc}:${lineNum} - Error boundary try/catch:`,
+                        `try {`,
+                        `    executeOperation();`,
+                        `} catch (error) {`,
+                        `    console.warn('[ERROR_BOUNDARY] Caught exception:', error.message);`,
+                        `}`
+                    ].join('\n'),
+                    `\`\`\``,
+                    ``
+                );
+            }
+
+            messageText = messageLines.filter((l) => l !== undefined && l !== null).join('\n');
+        }
 
         // 6. Insert Resolution Message into incident messages composition
         await tx.run(INSERT.into(Messages).entries({
@@ -677,7 +922,7 @@ export default cds.service.impl(async function (this: cds.Service) {
         }));
 
         // 7. Update incident remediationAction and transition status (code execution)
-        await tx.run(UPDATE(Incidents).set({
+        await tx.run(UPDATE(Logs).set({
             remediationAction: quickFixCli || steps[0],
             status: incident.status === 'OPEN' ? 'INVESTIGATING' : incident.status
         }).where({ ID: incidentId }));
@@ -685,13 +930,13 @@ export default cds.service.impl(async function (this: cds.Service) {
         LOG.info(`Successfully executed resolution task for incident ${incidentId}. Message added to discussions.`);
 
         // Return updated Incident record
-        return await tx.run(SELECT.one.from(Incidents).where({ ID: incidentId }));
+        return await tx.run(SELECT.one.from(Logs).where({ ID: incidentId }));
     };
 
     // ------------------------------------------------------------------------
-    // Action: executeResolutionTask (Bound to Incidents entity)
+    // Action: executeResolutionTask (Bound to Logs entity)
     // ------------------------------------------------------------------------
-    this.on('executeResolutionTask', 'Incidents', async (req: cds.Request) => {
+    this.on('executeResolutionTask', 'Logs', async (req: cds.Request) => {
         let incidentId = req.data?.incident_ID || req.data?.ID;
         if (!incidentId && req.params && req.params.length > 0) {
             const p = req.params[0] as any;
@@ -713,9 +958,9 @@ export default cds.service.impl(async function (this: cds.Service) {
     });
 
     // ------------------------------------------------------------------------
-    // Action: suggestResolution (Alias bound to Incidents entity)
+    // Action: suggestResolution (Alias bound to Logs entity)
     // ------------------------------------------------------------------------
-    this.on('suggestResolution', 'Incidents', async (req: cds.Request) => {
+    this.on('suggestResolution', 'Logs', async (req: cds.Request) => {
         let incidentId = req.data?.incident_ID || req.data?.ID;
         if (!incidentId && req.params && req.params.length > 0) {
             const p = req.params[0] as any;
@@ -737,7 +982,7 @@ export default cds.service.impl(async function (this: cds.Service) {
     });
 
     // ------------------------------------------------------------------------
-    // Action: executeResolutionTaskForIncident (Unbound tool on IncidentService)
+    // Action: executeResolutionTaskForIncident (Unbound tool on Logservice)
     // ------------------------------------------------------------------------
     this.on('executeResolutionTaskForIncident', async (req: cds.Request) => {
         const { incident_ID, prompt } = req.data;
@@ -756,7 +1001,7 @@ export default cds.service.impl(async function (this: cds.Service) {
     });
 
     // ------------------------------------------------------------------------
-    // Action: suggestResolutionForIncident (Alias unbound tool on IncidentService)
+    // Action: suggestResolutionForIncident (Alias unbound tool on Logservice)
     // ------------------------------------------------------------------------
     this.on('suggestResolutionForIncident', async (req: cds.Request) => {
         const { incident_ID, prompt } = req.data;

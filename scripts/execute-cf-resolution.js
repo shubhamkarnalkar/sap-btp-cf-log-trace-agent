@@ -72,13 +72,13 @@ async function main() {
         console.log(`\n2️⃣  Targeting specified Incident UUID: ${targetIncidentId}`);
         incident = { ID: targetIncidentId };
     } else {
-        console.log('\n2️⃣  Querying for active incidents requiring remediation...');
+        console.log('\n2️⃣  Querying for active Logs requiring remediation...');
         const queryRes = await postJson(mcpUrl, {
             jsonrpc: '2.0',
             id: 2,
             method: 'tools/call',
             params: {
-                name: 'IncidentService_Incidents_query',
+                name: 'Logservice_Logs_query',
                 arguments: { top: 1 }
             }
         }, mcpHeaders);
@@ -89,20 +89,21 @@ async function main() {
                 const parsed = JSON.parse(content[0].text);
                 incident = Array.isArray(parsed) ? parsed[0] : parsed;
             }
-        } catch (e) {}
+        } catch (e) { }
 
         if (!incident || !incident.ID) {
-            console.log('   ℹ️  No open incidents found in memory. Creating a sample Cloud Foundry incident for demonstration...');
+            console.log('   ℹ️  No open Logs found in memory. Creating a sample Cloud Foundry incident for demonstration...');
             const createRes = await postJson(mcpUrl, {
                 jsonrpc: '2.0',
                 id: 21,
                 method: 'tools/call',
                 params: {
-                    name: 'IncidentService_Incidents_create',
+                    name: 'Logservice_Logs_create',
                     arguments: {
                         applicationId: 'order-processing-srv',
                         targetSpace: 'prod',
                         correlatedRequestId: 'req-cf-oom-4921',
+                        statusCode: 503,
                         status: 'OPEN',
                         errorCategory: 'CF_APP_CRASH',
                         rootCauseStatement: 'Container killed by Diego Cell cgroup manager: Out Of Memory (Exit Status 137).',
@@ -118,6 +119,7 @@ async function main() {
     }
 
     console.log(`   Incident ID: ${incident.ID}`);
+    if (incident.statusCode) console.log(`   Status Code: ${incident.statusCode}`);
     if (incident.applicationId) console.log(`   Application: ${incident.applicationId}`);
     if (incident.errorCategory) console.log(`   Category:    ${incident.errorCategory}`);
     if (incident.rootCauseStatement) console.log(`   Root Cause:  ${incident.rootCauseStatement}`);
@@ -166,7 +168,7 @@ async function main() {
             id: 5,
             method: 'tools/call',
             params: {
-                name: 'IncidentService_Messages_query',
+                name: 'Logservice_Messages_query',
                 arguments: {
                     return: 'rows',
                     where: [{ field: 'incident_ID', op: 'eq', value: incident.ID }]

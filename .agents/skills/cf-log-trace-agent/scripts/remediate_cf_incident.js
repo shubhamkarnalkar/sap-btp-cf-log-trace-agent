@@ -5,7 +5,7 @@
  * or add resolution messages for Cloud Foundry errors and warnings.
  *
  * Implements the standard 5-step autonomous protocol from the cf-log-trace-agent skill:
- * 1. Discover active/unresolved incidents
+ * 1. Discover active/unresolved Logs
  * 2. Diagnose telemetry & exit codes (OOM, Gorouter, Process crashes, Warnings)
  * 3. Match against Cloud Foundry Error Resolution Catalog
  * 4. Execute executeResolutionTask / executeResolutionTaskForIncident
@@ -64,7 +64,7 @@ async function runTask(incidentId, prompt) {
             id: 2,
             method: 'tools/call',
             params: {
-                name: 'IncidentService_Incidents_query',
+                name: 'Logservice_Logs_query',
                 arguments: { top: 1 }
             }
         }, headers);
@@ -72,7 +72,7 @@ async function runTask(incidentId, prompt) {
         try {
             const parsed = JSON.parse(queryRes.data?.result?.content?.[0]?.text);
             targetId = (Array.isArray(parsed) ? parsed[0] : parsed)?.ID;
-        } catch (e) {}
+        } catch (e) { }
     }
 
     if (!targetId) {
@@ -82,7 +82,7 @@ async function runTask(incidentId, prompt) {
             id: 21,
             method: 'tools/call',
             params: {
-                name: 'IncidentService_Incidents_create',
+                name: 'Logservice_Logs_create',
                 arguments: {
                     applicationId: 'cf-core-api',
                     targetSpace: 'dev',
